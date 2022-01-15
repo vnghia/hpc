@@ -147,41 +147,53 @@ int main() {
 
   init(M, K, lda, a, 1.0);
   init(K, N, ldb, b, 2.0);
+
+#ifndef NO_PRINT_ARRAY
   print_array(M, K, lda, a);
   print_array(K, N, ldb, b);
+#endif
 
   /* Naive dot */
-
+#ifndef NO_NAIVE_DOT
   time = omp_get_wtime();
   naive_dot(a, lda, b, ldb, c, ldc);
   time = omp_get_wtime() - time;
   printf("Frobenius Norm   = %f\n", norm(M, N, ldc, c));
   printf("Total time naive = %f\n", time);
   printf("Gflops           = %f\n\n", flops / (time * 1e9));
+#ifndef NO_PRINT_ARRAY
   print_array(M, N, ldc, c);
+#endif
+#endif
 
   /* Saxpy dot */
-
+#ifndef NO_SAXPY_DOT
   time = omp_get_wtime();
   saxpy_dot(a, lda, b, ldb, c, ldc);
   time = omp_get_wtime() - time;
   printf("Frobenius Norm   = %f\n", norm(M, N, ldc, c));
   printf("Total time saxpy = %f\n", time);
   printf("Gflops           = %f\n\n", flops / (time * 1e9));
+#ifndef NO_PRINT_ARRAY
   print_array(M, N, ldc, c);
+#endif
+#endif
 
   /* Blocking dot */
-
+#ifndef NO_TILED_DOT
   time = omp_get_wtime();
   blocking_dot(a, lda, b, ldb, c, ldc);
   time = omp_get_wtime() - time;
   printf("Frobenius Norm   = %f\n", norm(M, N, ldc, c));
   printf("Total time tiled = %f\n", time);
   printf("Gflops           = %f\n\n", flops / (time * 1e9));
+#ifndef NO_PRINT_ARRAY
   print_array(M, N, ldc, c);
+#endif
+#endif
 
   /* BLAS dot */
-
+#ifndef NO_BLAS_DOT
   double alpha = 1.0;
   double beta = 0.0;
   time = omp_get_wtime();
@@ -191,7 +203,10 @@ int main() {
   printf("Frobenius Norm   = %f\n", norm(M, N, ldc, c));
   printf("Total time BLAS  = %f\n", time);
   printf("Gflops           = %f\n\n", flops / (time * 1e9));
+#ifndef NO_PRINT_ARRAY
   print_array(M, N, ldc, c);
+#endif
+#endif
 
   free(a);
   free(b);
