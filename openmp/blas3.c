@@ -89,9 +89,9 @@ void saxpy_dot(double *A, int lda, double *B, int ldb, double *C, int ldc) {
     for (j = 0; j < N; j++) C[i + ldc * j] = 0.;
 /* Perform the matrix-matrix product */
 #pragma  // TO BE FINISHED
-  for (i = 0; i < M; i++)
+  for (k = 0; k < K; k++)
     for (j = 0; j < N; j++)
-      for (k = 0; k < K; k++) C[i + ldc * j] += A[i + lda * k] * B[k + ldb * j];
+      for (i = 0; i < M; i++) C[i + ldc * j] += A[i + lda * k] * B[k + ldb * j];
 }
 
 /* Perform C = A x B with C a (N,M) matrix, A a (M,K) matrix and B a (K,N)
