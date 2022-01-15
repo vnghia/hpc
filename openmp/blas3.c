@@ -50,12 +50,12 @@ void naive_dot(double *A, int lda, double *B, int ldb, double *C, int ldc) {
   int i, j, k;
 /* Set the C matrix to zero */
 #pragma  // TO BE FINISHED
-  for (i = 0; i < N; i++)
-    for (j = 0; j < M; j++) C[i + ldc * j] = 0.;
+  for (i = 0; i < M; i++)
+    for (j = 0; j < N; j++) C[i + ldc * j] = 0.;
 /* Perform the matrix-matrix product */
 #pragma  // TO BE FINISHED
-  for (i = 0; i < N; i++)
-    for (j = 0; j < M; j++)
+  for (i = 0; i < M; i++)
+    for (j = 0; j < N; j++)
       for (k = 0; k < K; k++) C[i + ldc * j] += A[i + lda * k] * B[k + ldb * j];
 }
 
@@ -67,12 +67,12 @@ void saxpy_dot(double *A, int lda, double *B, int ldb, double *C, int ldc) {
   double temp;
 /* Set the C matrix to zero */
 #pragma  // TO BE FINISHED
-  for (i = 0; i < N; i++)
-    for (j = 0; j < M; j++) C[i + ldc * j] = 0.;
+  for (i = 0; i < M; i++)
+    for (j = 0; j < N; j++) C[i + ldc * j] = 0.;
 /* Perform the matrix-matrix product */
 #pragma  // TO BE FINISHED
-  for (i = 0; i < N; i++)
-    for (j = 0; j < M; j++)
+  for (i = 0; i < M; i++)
+    for (j = 0; j < N; j++)
       for (k = 0; k < K; k++) C[i + ldc * j] += A[i + lda * k] * B[k + ldb * j];
 }
 
@@ -84,23 +84,23 @@ void blocking_dot(double *A, int lda, double *B, int ldb, double *C, int ldc) {
   double temp;
 /* Set the C matrix to zero */
 #pragma  // TO BE FINISHED
-  for (i = 0; i < N; i++)
-    for (j = 0; j < M; j++) C[i + ldc * j] = 0.;
+  for (i = 0; i < M; i++)
+    for (j = 0; j < N; j++) C[i + ldc * j] = 0.;
 /* Perform the matrix-matrix product */
 #pragma  // TO BE FINISHED
-  for (i = 0; i < N; i++)
-    for (j = 0; j < M; j++)
+  for (i = 0; i < M; i++)
+    for (j = 0; j < N; j++)
       for (k = 0; k < K; k++) C[i + ldc * j] += A[i + lda * k] * B[k + ldb * j];
 }
 
 int main() {
-  int lda = N + 1;
-  int ldb = K + 1;
-  int ldc = N + 1;
+  int lda = M;
+  int ldb = K;
+  int ldc = M;
 
   double *a = (double *)malloc(lda * K * sizeof(double));
-  double *b = (double *)malloc(ldb * M * sizeof(double));
-  double *c = (double *)malloc(ldc * M * sizeof(double));
+  double *b = (double *)malloc(ldb * N * sizeof(double));
+  double *c = (double *)malloc(ldc * N * sizeof(double));
 
   double time;
   double flops = 2. * (double)N * (double)K * (double)M;
@@ -137,7 +137,7 @@ int main() {
   time = omp_get_wtime();
   naive_dot(a, lda, b, ldb, c, ldc);
   time = omp_get_wtime() - time;
-  printf("Frobenius Norm   = %f\n", norm(N, M, ldc, c));
+  printf("Frobenius Norm   = %f\n", norm(M, N, ldc, c));
   printf("Total time naive = %f\n", time);
   printf("Gflops           = %f\n\n", flops / (time * 1e9));
   print_array(M, N, ldc, c);
@@ -147,7 +147,7 @@ int main() {
   time = omp_get_wtime();
   saxpy_dot(a, lda, b, ldb, c, ldc);
   time = omp_get_wtime() - time;
-  printf("Frobenius Norm   = %f\n", norm(N, M, ldc, c));
+  printf("Frobenius Norm   = %f\n", norm(M, N, ldc, c));
   printf("Total time saxpy = %f\n", time);
   printf("Gflops           = %f\n\n", flops / (time * 1e9));
   print_array(M, N, ldc, c);
@@ -157,7 +157,7 @@ int main() {
   time = omp_get_wtime();
   blocking_dot(a, lda, b, ldb, c, ldc);
   time = omp_get_wtime() - time;
-  printf("Frobenius Norm   = %f\n", norm(N, M, ldc, c));
+  printf("Frobenius Norm   = %f\n", norm(M, N, ldc, c));
   printf("Total time tiled = %f\n", time);
   printf("Gflops           = %f\n\n", flops / (time * 1e9));
   print_array(M, N, ldc, c);
@@ -167,10 +167,10 @@ int main() {
   double alpha = 1.0;
   double beta = 0.0;
   time = omp_get_wtime();
-  cblas_dgemm(CblasColMajor, CblasNoTrans, CblasNoTrans, N, M, K, alpha, a, lda,
+  cblas_dgemm(CblasColMajor, CblasNoTrans, CblasNoTrans, M, N, K, alpha, a, lda,
               b, ldb, beta, c, ldc);
   time = omp_get_wtime() - time;
-  printf("Frobenius Norm   = %f\n", norm(N, M, ldc, c));
+  printf("Frobenius Norm   = %f\n", norm(M, N, ldc, c));
   printf("Total time BLAS  = %f\n", time);
   printf("Gflops           = %f\n\n", flops / (time * 1e9));
   print_array(M, N, ldc, c);
