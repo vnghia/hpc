@@ -1,0 +1,18 @@
+---
+fontsize: 12pt
+classoption: xcolor = usenames,dvipsnames
+output:
+  bookdown::pdf_document2:
+    papersize: a4
+    fig_caption: true
+    highlight: tango
+    keep_tex: false
+    number_sections: true
+    pandoc_args: --listings
+    toc_depth: 3
+    toc: false
+    latex_engine: xelatex
+    includes:
+      in_header: preamble.tex
+      before_body: cover.tex
+---
