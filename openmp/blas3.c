@@ -93,7 +93,7 @@ void blocking_dot(double *A, int lda, double *B, int ldb, double *C, int ldc) {
       for (k = 0; k < K; k++) C[i + ldc * j] += A[i + lda * k] * B[k + ldb * j];
 }
 
-void main() {
+int main() {
   int lda = N + 1;
   int ldb = K + 1;
   int ldc = N + 1;
@@ -174,4 +174,9 @@ void main() {
   printf("Total time BLAS  = %f\n", time);
   printf("Gflops           = %f\n\n", flops / (time * 1e9));
   print_array(M, N, ldc, c);
+
+  free(a);
+  free(b);
+  free(c);
+  return 0;
 }
