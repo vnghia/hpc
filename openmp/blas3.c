@@ -4,11 +4,29 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#define M 4 /* Number of row     of matrix A */
-#define K 8 /* Number of columns of matrix A and rows of matrix B */
-#define N 4 /* Number of columns of matrix B */
+#ifndef M_HPC /* Number of row of matrix A */
+#define M 4
+#else
+#define M M_HPC
+#endif
 
+#ifndef K_HPC /* Number of columns of matrix A and rows of matrix B */
+#define K 8
+#else
+#define K K_HPC
+#endif
+
+#ifndef N_HPC /* Number of columns of matrix B */
+#define N 4
+#else
+#define N N_HPC
+#endif
+
+#ifndef BLOCK_HPC
 #define BLOCK 4
+#else
+#define BLOCK BLOCK_HPC
+#endif
 
 /* Init a Matrix A(nrow,ncol) according to Aij = c*(i+j)/nrow/ncol */
 
