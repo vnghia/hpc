@@ -1,5 +1,4 @@
 ---
-fontsize: 12pt
 documentclass: rapport3
 classoption: xcolor = usenames,dvipsnames
 output:
@@ -72,3 +71,62 @@ However, if we set `r replace_inline_code("M", default_m)`, `r replace_inline_co
 ```{r, naive-saxpy-big-output, echo=F}
 ```
 Here, the `naive_dot` function is approximately `r to_float_str(round(naive_saxpy_big_df$time[1]/naive_saxpy_big_df$time[2], 2))` times slower than the `saxpy_dot` function.
+
+### OpenMP parallelization
+
+In this section, we will analyse the main technique of this chapter: `OpenMP`. First, we show how we enable it on each function. We add a directive above each loop we want to parallelize whose general form is as below:
+
+- Variables inside `private` are tied to one specific thread (each thread has their own copies of those variables).
+- `SCHEDULE_HPC` is replaced by the schedule^[https://www.openmp.org/spec-html/5.0/openmpse49.html#x288-20520006.1] we want.
+- `NUM_THREADS_HPC` is corresponding to the number of threads to use for `parallel` regions.
+```{c, init-omp, code=read_from_commit(blas3_source_code, 36:37), eval=F}
+```
+
+In addition, inside `norm` function, we add a reduction clause `reduction(+ : norm)` as we want to sum up every `norm` from each thread to one final `norm` and taking square of that final sum. Finally, we have to add `#pragma omp atomic` above each line that updating the result matrix (`C`). It is because that matrix is shared among threads, `atomic` makes sure that there is only one `+=` operation (which is essentially reading and writing) on one specific pair of indices at a given time. Note that `norm` does not need atomicity thank to `reduction`.
+```{r, naive-saxpy-omp-shape, include=F}
+```
+Here, we show a comparision between with and without `OpenMP`. Default `OpenMP` options will be `r replace_inline_code("SCHEDULE_HPC", default_schedule[[1]]$name)` and `r replace_inline_code("NUM_THREADS_HPC", default_num_threads)`.
+```{r, naive-saxpy-omp-output, echo=F}
+```
+Thank to `OpenMP`, naive approach is faster than `r to_float_str(round(naive_saxpy_omp_df$time[1]/naive_saxpy_omp_df$time[2], 2))` times while the `saxpy_dot` took less `r to_float_str(round(naive_saxpy_omp_df$time[3]/naive_saxpy_omp_df$time[4], 2))` times than before. Both approachs performance are significantly improved.
+
+### Cache blocking (Tiled) {#cache-blocking}
+
+The main idea of the cache blocking technique (or tiled) is breaking the whole matrices into smaller sub-matrices so the data needed for one multiplication operation could fit into the cache, therefore leads to a much faster calculation. Furthermore, if we enable `OpenMP`, the computation would be even faster as each sub-matrice is processed by a separate thread. However, if we set `BLOCK` size too small, the benefit of dividing matrix is overshadowed by the additional loops and operations. Meanwhile, a too large `BLOCK` size leads to an overfitting (data for one operation can not be fitted into the cache), and therefore a slower operation. The principal source code is shown below:
+```{c, saxpy-dot-c, code=read_from_commit(blas3_source_code, 111:118, "ebcb8dc"), eval=F}
+```
+The above code will work only if `M`, `N` and `K` are divisible by `BLOCK`. A more generic version could be found in full source-code.
+
+```{r,naive-saxpy-tiled-shape, include=F}
+```
+We have a table comparision between all techniques we are dicussing so far below. Also, we set the default size of `r replace_inline_code("BLOCK", default_block)`.
+```{r, naive-saxpy-tiled-output, echo=F}
+```
+In the table above, cache blocking technique is already fast enough. However, `OpenMP` does not help speeding it up as the default `BLOCK` size is not optimized in this case.
+
+### BLAS
+One last technique that is used in our code is calling the `cblas_dgemm` function which use the optimized `BLAS` implementation. This function is the fastest method even if other methods are *"cheated"* (by using `OpenMP`)  as their implementation is optimized based on many factors: algorithms, software and hardware.
+```{r, all-default-output, echo=F}
+```
+
+## Benchmarks
+### Sequential
+```{r, sequential-shape, include=F}
+```
+
+In this section, we fix `r replace_inline_code("NUM_THREADS_HPC", sequential_num_threads)` and vary the matrix size. Instead of using environmental variables, we use a script for generating code with the hard-coded configurations we want as reading environmental variables is an expensive operation.
+
+For the sake of simplicity, we first consider the case where M and K and N are all equal and equal to a $2^s$ where `r replace_inline_code("s", ms_sequential[1])` to `r replace_inline_code("s", tail(ms_sequential, 1))`. In addition, we have included a non `OpenMP` result (which is also sequential) for studying how the overhead time of `OpenMP` impacts the overall performance.
+```{r, sequential-output, echo=F}
+```
+```{r, sequential-plot, echo=F, fig.cap="Computational time in function of matrix size"}
+sequential_plot
+```
+
+
+```{r, sequential-last-shape-output, echo=F}
+```
+
+In the graph below, we see that the fastest method is no doubt `blas` method, followed by `tiled`, `saxpy` and the slowest is `naive`. This is aligned with what we see in the [section 1](#techniques). In addition, the time for calculating matrices whose size is less than $2^{10} = 1024$ is around $5s$ for all methods. This could be explained by the fact that these matrices could be fitted entierly into the cache, which leads to a significant drop in computation time.
+
+Another property that could be interesting is the version with `OpenMP` is close or even faster than the non `OpenMP` version regardless the overhead of parallelization. This could be explained by many factors ^[https://stackoverflow.com/questions/22927973/openmp-with-single-thread-versus-without-openmp] ^[https://stackoverflow.com/questions/2915390/openmp-num-threads1-executes-faster-than-no-openmp], but the most significant one is As `OpenMP` is just API specification and C compilers are free to implement it in any way they want as long as they respect the specification, many compilers (notably modern `gcc` and `clang`) are smart enough to treat `OpenMP` version of only 1 thread the same as the sequential version. Therefore, we only see a small difference between each run. If we run both versions enough times, the difference in average time of each will be the smaller.
