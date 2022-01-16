@@ -176,26 +176,6 @@ int main() {
   double time;
   double flops = 2. * (double)N * (double)K * (double)M;
 
-  /* OpenMP informations */
-
-  omp_sched_t kind;
-  int chunk_size;
-
-  printf("\nParallel execution with a maximum of %d threads callable\n\n",
-         omp_get_max_threads());
-
-  omp_get_schedule(&kind, &chunk_size);
-
-  if (kind == 1) {
-    printf("Scheduling static with chunk = %d\n\n", chunk_size);
-  } else if (kind == 2) {
-    printf("Scheduling dynamic with chunk = %d\n\n", chunk_size);
-  } else if (kind == 3) {
-    printf("Scheduling auto with chunk = %d\n\n", chunk_size);
-  } else if (kind == 4) {
-    printf("Scheduling guided with chunk = %d\n\n", chunk_size);
-  }
-
   /* Initialization of A and B matrices */
 
   init(M, K, lda, a, 1.0);
