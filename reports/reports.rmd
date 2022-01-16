@@ -1,5 +1,6 @@
 ---
 fontsize: 12pt
+documentclass: rapport3
 classoption: xcolor = usenames,dvipsnames
 output:
   bookdown::pdf_document2:
@@ -8,11 +9,66 @@ output:
     highlight: tango
     keep_tex: false
     number_sections: true
-    pandoc_args: --listings
+    pandoc_args: 
+      - "--listings"
+      - "--top-level-division=chapter"
     toc_depth: 3
     toc: false
-    latex_engine: xelatex
+    latex_engine: lualatex
     includes:
       in_header: preamble.tex
       before_body: cover.tex
 ---
+
+```{r, chunk, include=F, cache=F}
+knitr::read_chunk("reports.R")
+```
+
+```{r init, include=F}
+```
+
+# OpenMP
+## Optimization techniques {#techniques}
+### Naive dot
+
+We first mention here the original `naive_dot` function. This function serves as an anchor (or base case) for performance comparision as well as for making sure we have the right result when using other techniques.
+
+```{c, naive-dot-c, code=read_from_commit(blas3_source_code, 57:59, "7bc4b82"), eval=F}
+```
+```{r, naive-dot-shape, include=F}
+```
+Below is the output of `naive_dot` for `r replace_inline_code("M", m_naive_dot)`, `r replace_inline_code("K", k_naive_dot)` and `r replace_inline_code("N", n_naive_dot)`:
+```{r, naive-dot-output, echo=F}
+```
+
+As
+$$
+```{r, naive-dot-true, results="asis", echo=F}
+```
+$$
+The result of this function is correct. We move on to the next technique.
+
+### Spatial locality
+
+Spatial locality refers to the following scenario: if a particular storage location is referenced at a particular time, then it is likely that nearby memory locations will be referenced in the near future. In order to take advantages of this property, we notice that:
+
+  - In memory, `A`, `B`, `C` are stored in contiguous memory block.
+  - When using the index order `i`, `j`, `k`, we access `B` consecutively (as we access `B` by `B[k + ldb * j]`), but not `A` and `C`.
+  - Data from `A`, `B`, `C` are loaded in a memory block consisting of severals consecutive elements to cache. Thus, we could make use of spatial locality when reading data continously.
+
+From 3 points above, we decide to switch the index order to `k`, `j`, `i`. Now we see that both reading and writing operations on `C` are in cache, this brings us a critical gain in performance. In addition, reading operations on `A` are in cache too but those on `B` are not.
+
+```{c, saxpy-dot-c, code=read_from_commit(blas3_source_code, 92:94, "cd150fe"), eval=F}
+```
+```{r, naive-saxpy-small-shape, include=F}
+```
+For comparision, we have a table below with `r replace_inline_code("M", m_naive_saxpy_small)`, `r replace_inline_code("K", k_naive_saxpy_small)` and `r replace_inline_code("N", n_naive_saxpy_small)`.
+```{r, naive-saxpy-small-output, echo=F}
+```
+We have the frobenius norm of both techniques are `r to_float_str(naive_saxpy_small_df$norm[1])` which indicate we have the right computation result. In addition, calculating time is already significantly small ($\approx$ 0 second in both methods) and the difference between these two can therefore be ommited.
+```{r, naive-saxpy-big-shape, include=F}
+```
+However, if we set `r replace_inline_code("M", default_m)`, `r replace_inline_code("K", default_k)` and `r replace_inline_code("N", default_n)`, there will be a huge performance gain as in the table shown below. In addition, from now, for an easier comparision between results, we will consider the default value of `M`, `K` and `N` is `r replace_inline_code("M", default_m)`, `r replace_inline_code("K", default_k)` and `r replace_inline_code("N", default_n)` if not explicitly mentioned.
+```{r, naive-saxpy-big-output, echo=F}
+```
+Here, the `naive_dot` function is approximately `r to_float_str(round(naive_saxpy_big_df$time[1]/naive_saxpy_big_df$time[2], 2))` times slower than the `saxpy_dot` function.
