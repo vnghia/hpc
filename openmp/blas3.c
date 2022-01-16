@@ -32,7 +32,10 @@
 
 void init(int nrow, int ncol, int ld, double *A, double cst) {
   int i, j;
-#pragma  // TO BE FINISHED
+#ifndef NO_OMP
+#pragma omp parallel for schedule(SCHEDULE_HPC) default(shared) private(i, j) \
+    num_threads(NUM_THREADS_HPC)
+#endif
   for (i = 0; i < nrow; i++)
     for (j = 0; j < ncol; j++)
       A[i + j * ld] =
@@ -44,7 +47,9 @@ void init(int nrow, int ncol, int ld, double *A, double cst) {
 double norm(int nrow, int ncol, int ld, double *A) {
   double norm = 0.;
   int i, j;
-#pragma  // TO BE FINISHED
+#ifndef NO_OMP
+#pragma omp parallel for schedule(SCHEDULE_HPC) default(shared) private(i, j) reduction(+ : norm) num_threads(NUM_THREADS_HPC)
+#endif
   for (i = 0; i < nrow; i++)
     for (j = 0; j < ncol; j++) norm += A[i + j * ld] * A[i + j * ld];
   return sqrt(norm);
@@ -67,14 +72,22 @@ void print_array(int nrow, int ncol, int ld, double *A) {
 void naive_dot(double *A, int lda, double *B, int ldb, double *C, int ldc) {
   int i, j, k;
 /* Set the C matrix to zero */
-#pragma  // TO BE FINISHED
+#ifndef NO_OMP
+#pragma omp parallel for schedule(SCHEDULE_HPC) default(shared) private(i, j) \
+    num_threads(NUM_THREADS_HPC)
+#endif
   for (i = 0; i < M; i++)
     for (j = 0; j < N; j++) C[i + ldc * j] = 0.;
 /* Perform the matrix-matrix product */
-#pragma  // TO BE FINISHED
+#ifndef NO_OMP
+#pragma omp parallel for schedule(SCHEDULE_HPC) default(shared) private( \
+    i, j, k) num_threads(NUM_THREADS_HPC)
+#endif
   for (i = 0; i < M; i++)
     for (j = 0; j < N; j++)
-      for (k = 0; k < K; k++) C[i + ldc * j] += A[i + lda * k] * B[k + ldb * j];
+      for (k = 0; k < K; k++)
+#pragma omp atomic
+        C[i + ldc * j] += A[i + lda * k] * B[k + ldb * j];
 }
 
 /* Perform C = A x B with C a (N,M) matrix, A a (M,K) matrix and B a (K,N)
@@ -84,14 +97,22 @@ void saxpy_dot(double *A, int lda, double *B, int ldb, double *C, int ldc) {
   int i, j, k;
   double temp;
 /* Set the C matrix to zero */
-#pragma  // TO BE FINISHED
+#ifndef NO_OMP
+#pragma omp parallel for schedule(SCHEDULE_HPC) default(shared) private(i, j) \
+    num_threads(NUM_THREADS_HPC)
+#endif
   for (i = 0; i < M; i++)
     for (j = 0; j < N; j++) C[i + ldc * j] = 0.;
 /* Perform the matrix-matrix product */
-#pragma  // TO BE FINISHED
+#ifndef NO_OMP
+#pragma omp parallel for schedule(SCHEDULE_HPC) default(shared) private( \
+    i, j, k) num_threads(NUM_THREADS_HPC)
+#endif
   for (k = 0; k < K; k++)
     for (j = 0; j < N; j++)
-      for (i = 0; i < M; i++) C[i + ldc * j] += A[i + lda * k] * B[k + ldb * j];
+      for (i = 0; i < M; i++)
+#pragma omp atomic
+        C[i + ldc * j] += A[i + lda * k] * B[k + ldb * j];
 }
 
 /* Perform C = A x B with C a (N,M) matrix, A a (M,K) matrix and B a (K,N)
@@ -101,23 +122,27 @@ void blocking_dot(double *A, int lda, double *B, int ldb, double *C, int ldc) {
   int i, j, k, ii, jj, kk;
   double temp;
 /* Set the C matrix to zero */
-#pragma  // TO BE FINISHED
+#pragma omp parallel for schedule(SCHEDULE_HPC) default(shared) private(i, j) \
+    num_threads(NUM_THREADS_HPC)
   for (i = 0; i < M; i++)
     for (j = 0; j < N; j++) C[i + ldc * j] = 0.;
 
 /* Perform the matrix-matrix product */
 #ifndef NOT_DIVISIBLE_BY_BLOCK
-#pragma  // TO BE FINISHED
+#pragma omp parallel for schedule(SCHEDULE_HPC) default(shared) private( \
+    i, j, k, ii, jj, kk) num_threads(NUM_THREADS_HPC)
   for (k = 0; k < K; k += BLOCK)
     for (j = 0; j < N; j += BLOCK)
       for (i = 0; i < M; i += BLOCK)
         for (kk = 0; kk < BLOCK; kk++)
           for (jj = 0; jj < BLOCK; jj++)
             for (ii = 0; ii < BLOCK; ii++)
+#pragma omp atomic
               C[(ii + i) + ldc * (jj + j)] +=
                   A[(ii + i) + lda * (kk + k)] * B[(kk + k) + ldb * (jj + j)];
 #else
-#pragma  // TO BE FINISHED
+#pragma omp parallel for schedule(SCHEDULE_HPC) default(shared) private( \
+    i, j, k, ii, jj, kk) num_threads(NUM_THREADS_HPC)
   for (k = 0; k < K; k += BLOCK) {
     for (j = 0; j < N; j += BLOCK) {
       for (i = 0; i < M; i += BLOCK) {
@@ -127,6 +152,7 @@ void blocking_dot(double *A, int lda, double *B, int ldb, double *C, int ldc) {
           for (jj = 0; jj < jmin; jj++) {
             int imin = fmin(M - i, BLOCK);
             for (ii = 0; ii < imin; ii++) {
+#pragma omp atomic
               C[(ii + i) + ldc * (jj + j)] +=
                   A[(ii + i) + lda * (kk + k)] * B[(kk + k) + ldb * (jj + j)];
             }
