@@ -1,5 +1,4 @@
 ---
-fontsize: 12pt
 documentclass: rapport3
 classoption: xcolor = usenames,dvipsnames
 output:
