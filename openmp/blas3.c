@@ -104,11 +104,38 @@ void blocking_dot(double *A, int lda, double *B, int ldb, double *C, int ldc) {
 #pragma  // TO BE FINISHED
   for (i = 0; i < M; i++)
     for (j = 0; j < N; j++) C[i + ldc * j] = 0.;
+
 /* Perform the matrix-matrix product */
+#ifndef NOT_DIVISIBLE_BY_BLOCK
 #pragma  // TO BE FINISHED
-  for (i = 0; i < M; i++)
-    for (j = 0; j < N; j++)
-      for (k = 0; k < K; k++) C[i + ldc * j] += A[i + lda * k] * B[k + ldb * j];
+  for (k = 0; k < K; k += BLOCK)
+    for (j = 0; j < N; j += BLOCK)
+      for (i = 0; i < M; i += BLOCK)
+        for (kk = 0; kk < BLOCK; kk++)
+          for (jj = 0; jj < BLOCK; jj++)
+            for (ii = 0; ii < BLOCK; ii++)
+              C[(ii + i) + ldc * (jj + j)] +=
+                  A[(ii + i) + lda * (kk + k)] * B[(kk + k) + ldb * (jj + j)];
+#else
+#pragma  // TO BE FINISHED
+  for (k = 0; k < K; k += BLOCK) {
+    for (j = 0; j < N; j += BLOCK) {
+      for (i = 0; i < M; i += BLOCK) {
+        int kmin = fmin(K - k, BLOCK);
+        for (kk = 0; kk < kmin; kk++) {
+          int jmin = fmin(N - j, BLOCK);
+          for (jj = 0; jj < jmin; jj++) {
+            int imin = fmin(M - i, BLOCK);
+            for (ii = 0; ii < imin; ii++) {
+              C[(ii + i) + ldc * (jj + j)] +=
+                  A[(ii + i) + lda * (kk + k)] * B[(kk + k) + ldb * (jj + j)];
+            }
+          }
+        }
+      }
+    }
+  }
+#endif
 }
 
 int main() {
