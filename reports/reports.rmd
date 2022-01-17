@@ -103,3 +103,8 @@ We have a table comparision between all techniques we are dicussing so far below
 ```{r, naive-saxpy-tiled-output, echo=F}
 ```
 In the table above, cache blocking technique is already fast enough. However, `OpenMP` does not help speeding it up as the default `BLOCK` size is not optimized in this case.
+
+### BLAS
+One last technique that is used in our code is calling the `cblas_dgemm` function which use the optimized `BLAS` implementation. This function is the fastest method even if other methods are *"cheated"* (by using `OpenMP`)  as their implementation is optimized based on many factors: algorithms, software and hardware.
+```{r, all-default-output, echo=F}
+```
