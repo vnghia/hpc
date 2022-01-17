@@ -108,3 +108,25 @@ In the table above, cache blocking technique is already fast enough. However, `O
 One last technique that is used in our code is calling the `cblas_dgemm` function which use the optimized `BLAS` implementation. This function is the fastest method even if other methods are *"cheated"* (by using `OpenMP`)  as their implementation is optimized based on many factors: algorithms, software and hardware.
 ```{r, all-default-output, echo=F}
 ```
+
+## Benchmarks
+### Sequential
+```{r, sequential-shape, include=F}
+```
+
+In this section, we fix `r replace_inline_code("NUM_THREADS_HPC", sequential_num_threads)` and vary the matrix size. Instead of using environmental variables, we use a script for generating code with the hard-coded configurations we want as reading environmental variables is an expensive operation.
+
+For the sake of simplicity, we first consider the case where M and K and N are all equal and equal to a $2^s$ where `r replace_inline_code("s", ms_sequential[1])` to `r replace_inline_code("s", tail(ms_sequential, 1))`. In addition, we have included a non `OpenMP` result (which is also sequential) for studying how the overhead time of `OpenMP` impacts the overall performance.
+```{r, sequential-output, echo=F}
+```
+```{r, sequential-plot, echo=F, fig.cap="Computational time in function of matrix size"}
+sequential_plot
+```
+
+
+```{r, sequential-last-shape-output, echo=F}
+```
+
+In the graph below, we see that the fastest method is no doubt `blas` method, followed by `tiled`, `saxpy` and the slowest is `naive`. This is aligned with what we see in the [section 1](#techniques). In addition, the time for calculating matrices whose size is less than $2^{10} = 1024$ is around $5s$ for all methods. This could be explained by the fact that these matrices could be fitted entierly into the cache, which leads to a significant drop in computation time.
+
+Another property that could be interesting is the version with `OpenMP` is close or even faster than the non `OpenMP` version regardless the overhead of parallelization. This could be explained by many factors ^[https://stackoverflow.com/questions/22927973/openmp-with-single-thread-versus-without-openmp] ^[https://stackoverflow.com/questions/2915390/openmp-num-threads1-executes-faster-than-no-openmp], but the most significant one is As `OpenMP` is just API specification and C compilers are free to implement it in any way they want as long as they respect the specification, many compilers (notably modern `gcc` and `clang`) are smart enough to treat `OpenMP` version of only 1 thread the same as the sequential version. Therefore, we only see a small difference between each run. If we run both versions enough times, the difference in average time of each will be the smaller.
