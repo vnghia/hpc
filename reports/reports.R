@@ -108,3 +108,27 @@ naive_saxpy_omp_df %>%
     caption = "naive vs saxpy with OpenMP"
   ) %>%
   kable_styling(latex_options = c("hold_position"))
+
+## ---- naive-saxpy-tiled-shape ----
+default_block <- list(4L)
+
+## ---- naive-saxpy-tiled-output ----
+naive_saxpy_tiled_df <- DBOpenMP(
+  algos = c(
+    Algo$naive,
+    Algo$saxpy, Algo$tiled
+  ), Ms = default_m,
+  Ks = default_k, Ns = default_n, blocks = default_block,
+  omps = default_omps, schedules = default_schedule,
+  chunks = default_chunk, num_threadss = default_num_threads
+)$to_df(c(
+  "algo",
+  "time", "norm", "gflops", "omp"
+))
+naive_saxpy_tiled_df %>%
+  kbl(
+    booktabs = T, format.args = list(scientific = FALSE),
+    linesep = c("", "\\addlinespace"),
+    caption = "naive vs saxpy vs tiled"
+  ) %>%
+  kable_styling(latex_options = c("hold_position"))
