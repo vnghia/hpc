@@ -89,3 +89,17 @@ Here, we show a comparision between with and without `OpenMP`. Default `OpenMP` 
 ```{r, naive-saxpy-omp-output, echo=F}
 ```
 Thank to `OpenMP`, naive approach is faster than `r to_float_str(round(naive_saxpy_omp_df$time[1]/naive_saxpy_omp_df$time[2], 2))` times while the `saxpy_dot` took less `r to_float_str(round(naive_saxpy_omp_df$time[3]/naive_saxpy_omp_df$time[4], 2))` times than before. Both approachs performance are significantly improved.
+
+### Cache blocking (Tiled) {#cache-blocking}
+
+The main idea of the cache blocking technique (or tiled) is breaking the whole matrices into smaller sub-matrices so the data needed for one multiplication operation could fit into the cache, therefore leads to a much faster calculation. Furthermore, if we enable `OpenMP`, the computation would be even faster as each sub-matrice is processed by a separate thread. However, if we set `BLOCK` size too small, the benefit of dividing matrix is overshadowed by the additional loops and operations. Meanwhile, a too large `BLOCK` size leads to an overfitting (data for one operation can not be fitted into the cache), and therefore a slower operation. The principal source code is shown below:
+```{c, saxpy-dot-c, code=read_from_commit(blas3_source_code, 111:118, "ebcb8dc"), eval=F}
+```
+The above code will work only if `M`, `N` and `K` are divisible by `BLOCK`. A more generic version could be found in full source-code.
+
+```{r,naive-saxpy-tiled-shape, include=F}
+```
+We have a table comparision between all techniques we are dicussing so far below. Also, we set the default size of `r replace_inline_code("BLOCK", default_block)`.
+```{r, naive-saxpy-tiled-output, echo=F}
+```
+In the table above, cache blocking technique is already fast enough. However, `OpenMP` does not help speeding it up as the default `BLOCK` size is not optimized in this case.
