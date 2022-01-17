@@ -2,6 +2,19 @@
 
 library(reticulate)
 library(kableExtra)
+library(ggplot2)
+library(hrbrthemes)
+library(scales)
+library(viridis)
+
+theme_set(theme_ipsum(base_family = "") +
+  theme(axis.title.x = element_text(
+    hjust = 0.5,
+    size = 11
+  ), axis.title.y = element_text(
+    hjust = 0.5,
+    size = 11
+  ), ))
 
 source("utils.R")
 source_python("utils.py")
@@ -151,5 +164,66 @@ all_default_df %>%
     booktabs = T, format.args = list(scientific = FALSE),
     linesep = c("", "\\addlinespace"),
     caption = "all techniques with default options"
+  ) %>%
+  kable_styling(latex_options = c("hold_position"))
+
+## ---- sequential-shape ----
+ms_sequential <- 2:11
+ks_sequential <- ms_sequential
+ns_sequential <- ms_sequential
+sequential_num_threads <- list(1L)
+
+## ---- sequential-output ----
+sequential_db <- DBOpenMP(
+  algos = c(
+    Algo$naive,
+    Algo$saxpy, Algo$tiled, Algo$blas
+  ), Ms = as.integer(2^ms_sequential),
+  Ks = as.integer(2^ms_sequential), Ns = as.integer(2^ms_sequential),
+  blocks = default_block, omps = default_omps,
+  schedules = default_schedule, chunks = default_chunk,
+  num_threadss = sequential_num_threads
+)
+
+sequential_df <- sequential_db$to_df(c(
+  "algo",
+  "M", "time", "omp"
+), F)
+sequential_plot <- sequential_df %>%
+  ggplot(aes(
+    x = M, y = time, shape = omp,
+    color = algo, group = interaction(
+      omp,
+      algo
+    )
+  )) +
+  geom_line(alpha = 0.75) +
+  geom_point(size = 2, alpha = 0.9) +
+  scale_x_continuous(
+    trans = log2_trans(),
+    breaks = trans_breaks("log2", function(x) 2^x),
+    labels = trans_format("log2", math_format(2^.x))
+  ) +
+  xlab("M = K = N") +
+  ylab("Time (s)") +
+  theme(legend.position = "bottom") +
+  scale_color_manual(values = turbo(4))
+
+## ---- sequential-last-shape-output
+sequential_db$to_df(c(
+  "algo", "M", "time",
+  "omp"
+))[sequential_df$M == 2^tail(
+  ms_sequential,
+  1
+), -2] %>%
+  kbl(
+    booktabs = T, format.args = list(scientific = FALSE),
+    linesep = c("", "\\addlinespace"),
+    caption = paste(
+      "Computation time when M = N = K = ",
+      2^tail(ms_sequential, 1)
+    ), format = "latex",
+    row.names = F
   ) %>%
   kable_styling(latex_options = c("hold_position"))
