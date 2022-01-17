@@ -5,6 +5,7 @@ library(kableExtra)
 library(ggplot2)
 library(hrbrthemes)
 library(scales)
+library(tidyr)
 library(viridis)
 
 theme_set(theme_ipsum(base_family = "") +
@@ -227,3 +228,68 @@ sequential_db$to_df(c(
     row.names = F
   ) %>%
   kable_styling(latex_options = c("hold_position"))
+
+## ---- threading-shape ----
+threading_num_threadss <- 1:7
+threading_schedule <- c(
+  Schedule$static,
+  Schedule$dynamic, Schedule$guided, Schedule$auto
+)
+threading_chunks <- 0L
+threading_params <- expand.grid(
+  threading_schedule,
+  threading_chunks, as.integer(2^threading_num_threadss)
+)
+threading_omp <- list(T)
+
+## ---- threading-output ----
+threading_db <- DBOpenMP(
+  algos = c(
+    Algo$naive,
+    Algo$saxpy, Algo$tiled
+  ), Ms = default_m,
+  Ks = default_k, Ns = default_n, blocks = default_block,
+  omps = threading_omp, schedules = threading_params[
+    ,
+    1
+  ], chunks = threading_params[, 2],
+  num_threadss = threading_params[, 3]
+)
+threading_blas_df <- DBOpenMP(
+  algos = c(Algo$blas),
+  Ms = default_m, Ks = default_k, Ns = default_n
+)$to_df(c(
+  "algo",
+  "time", "schedule"
+), F) %>%
+  crossing(num_threads = 2^threading_num_threadss) %>%
+  as.data.frame()
+threading_blas_df["schedule"] <- "static"
+
+threading_df <- rbind(
+  threading_db$to_df(c(
+    "algo",
+    "time", "schedule", "num_threads"
+  ), F),
+  threading_blas_df
+)
+
+threading_plot <- threading_df %>%
+  ggplot(aes(
+    x = num_threads, y = time,
+    shape = schedule, color = algo, group = interaction(
+      schedule,
+      algo
+    )
+  )) +
+  geom_line(alpha = 0.75) +
+  geom_point(size = 2, alpha = 0.9) +
+  scale_x_continuous(
+    trans = log2_trans(),
+    breaks = trans_breaks("log2", function(x) 2^x),
+    labels = trans_format("log2", math_format(2^.x))
+  ) +
+  xlab("Number of threads") +
+  ylab("Time (s)") +
+  theme(legend.position = "bottom", legend.box = "vertical") +
+  scale_color_manual(values = turbo(4))
