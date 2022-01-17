@@ -1,5 +1,6 @@
 ---
 fontsize: 12pt
+documentclass: rapport3
 classoption: xcolor = usenames,dvipsnames
 output:
   bookdown::pdf_document2:
@@ -8,11 +9,41 @@ output:
     highlight: tango
     keep_tex: false
     number_sections: true
-    pandoc_args: --listings
+    pandoc_args: 
+      - "--listings"
+      - "--top-level-division=chapter"
     toc_depth: 3
     toc: false
-    latex_engine: xelatex
+    latex_engine: lualatex
     includes:
       in_header: preamble.tex
       before_body: cover.tex
 ---
+
+```{r, chunk, include=F, cache=F}
+knitr::read_chunk("reports.R")
+```
+
+```{r init, include=F}
+```
+
+# OpenMP
+## Optimization techniques {#techniques}
+### Naive dot
+
+We first mention here the original `naive_dot` function. This function serves as an anchor (or base case) for performance comparision as well as for making sure we have the right result when using other techniques.
+
+```{c, naive-dot-c, code=read_from_commit(blas3_source_code, 57:59, "7bc4b82"), eval=F}
+```
+```{r, naive-dot-shape, include=F}
+```
+Below is the output of `naive_dot` for `r replace_inline_code("M", m_naive_dot)`, `r replace_inline_code("K", k_naive_dot)` and `r replace_inline_code("N", n_naive_dot)`:
+```{r, naive-dot-output, echo=F}
+```
+
+As
+$$
+```{r, naive-dot-true, results="asis", echo=F}
+```
+$$
+The result of this function is correct. We move on to the next technique.
