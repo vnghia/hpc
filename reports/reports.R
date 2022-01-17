@@ -132,3 +132,24 @@ naive_saxpy_tiled_df %>%
     caption = "naive vs saxpy vs tiled"
   ) %>%
   kable_styling(latex_options = c("hold_position"))
+
+## ---- all-default-output ----
+all_default_df <- DBOpenMP(
+  algos = c(
+    Algo$naive,
+    Algo$saxpy, Algo$tiled, Algo$blas
+  ), Ms = default_m,
+  Ks = default_k, Ns = default_n, blocks = default_block,
+  omps = default_omps, schedules = default_schedule,
+  chunks = default_chunk, num_threadss = default_num_threads
+)$to_df(c(
+  "algo",
+  "time", "norm", "gflops", "omp"
+))
+all_default_df %>%
+  kbl(
+    booktabs = T, format.args = list(scientific = FALSE),
+    linesep = c("", "\\addlinespace"),
+    caption = "all techniques with default options"
+  ) %>%
+  kable_styling(latex_options = c("hold_position"))
