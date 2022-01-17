@@ -71,3 +71,21 @@ However, if we set `r replace_inline_code("M", default_m)`, `r replace_inline_co
 ```{r, naive-saxpy-big-output, echo=F}
 ```
 Here, the `naive_dot` function is approximately `r to_float_str(round(naive_saxpy_big_df$time[1]/naive_saxpy_big_df$time[2], 2))` times slower than the `saxpy_dot` function.
+
+### OpenMP parallelization
+
+In this section, we will analyse the main technique of this chapter: `OpenMP`. First, we show how we enable it on each function. We add a directive above each loop we want to parallelize whose general form is as below:
+
+- Variables inside `private` are tied to one specific thread (each thread has their own copies of those variables).
+- `SCHEDULE_HPC` is replaced by the schedule^[https://www.openmp.org/spec-html/5.0/openmpse49.html#x288-20520006.1] we want.
+- `NUM_THREADS_HPC` is corresponding to the number of threads to use for `parallel` regions.
+```{c, init-omp, code=read_from_commit(blas3_source_code, 36:37), eval=F}
+```
+
+In addition, inside `norm` function, we add a reduction clause `reduction(+ : norm)` as we want to sum up every `norm` from each thread to one final `norm` and taking square of that final sum. Finally, we have to add `#pragma omp atomic` above each line that updating the result matrix (`C`). It is because that matrix is shared among threads, `atomic` makes sure that there is only one `+=` operation (which is essentially reading and writing) on one specific pair of indices at a given time. Note that `norm` does not need atomicity thank to `reduction`.
+```{r, naive-saxpy-omp-shape, include=F}
+```
+Here, we show a comparision between with and without `OpenMP`. Default `OpenMP` options will be `r replace_inline_code("SCHEDULE_HPC", default_schedule[[1]]$name)` and `r replace_inline_code("NUM_THREADS_HPC", default_num_threads)`.
+```{r, naive-saxpy-omp-output, echo=F}
+```
+Thank to `OpenMP`, naive approach is faster than `r to_float_str(round(naive_saxpy_omp_df$time[1]/naive_saxpy_omp_df$time[2], 2))` times while the `saxpy_dot` took less `r to_float_str(round(naive_saxpy_omp_df$time[3]/naive_saxpy_omp_df$time[4], 2))` times than before. Both approachs performance are significantly improved.

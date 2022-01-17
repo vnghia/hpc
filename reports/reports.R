@@ -82,3 +82,29 @@ naive_saxpy_big_df %>%
     caption = paste("naive vs saxpy when M, N, K is big")
   ) %>%
   kable_styling(latex_options = c("hold_position"))
+
+## ---- naive-saxpy-omp-shape ----
+default_omps <- c(T, F)
+default_schedule <- list(Schedule$static)
+default_chunk <- list(0L)
+default_num_threads <- list(4L)
+
+## ---- naive-saxpy-omp-output ----
+naive_saxpy_omp_df <- DBOpenMP(
+  algos = c(
+    Algo$naive,
+    Algo$saxpy
+  ), Ms = default_m, Ks = default_k,
+  Ns = default_n, omps = default_omps,
+  schedules = default_schedule, chunks = default_chunk,
+  num_threadss = default_num_threads
+)$to_df(c(
+  "algo",
+  "time", "norm", "gflops", "omp"
+))
+naive_saxpy_omp_df %>%
+  kbl(
+    booktabs = T, format.args = list(scientific = FALSE),
+    caption = "naive vs saxpy with OpenMP"
+  ) %>%
+  kable_styling(latex_options = c("hold_position"))
