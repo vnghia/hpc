@@ -1,6 +1,6 @@
 ---
-documentclass: rapport3
-classoption: xcolor = usenames,dvipsnames
+classoption: a4paper, xcolor = usenames,dvipsnames
+geometry: margin=2.5cm
 output:
   bookdown::pdf_document2:
     papersize: a4
@@ -10,7 +10,6 @@ output:
     number_sections: true
     pandoc_args: 
       - "--listings"
-      - "--top-level-division=chapter"
     toc_depth: 3
     toc: false
     latex_engine: lualatex
@@ -122,7 +121,6 @@ For the sake of simplicity, we first consider the case where M and K and N are a
 ```{r, sequential-plot, echo=F, fig.cap="Computational time in function of matrix size"}
 sequential_plot
 ```
-
 
 ```{r, sequential-last-shape-output, echo=F}
 ```
