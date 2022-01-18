@@ -150,3 +150,15 @@ In addition, the 4 schedule cuvres of each technique are overlapping each others
 - `auto` lets the compiler choose how to schedule and divide work among threads, so it is compiler-specific. For example, `gcc` maps `auto` to `static` ^[https://github.com/gcc-mirror/gcc/blob/61e53698a08dc1d9a54d785218af687a6751c1b3/libgomp/loop.c#L195-L198], at a consequence, we see a similar pattern with `static`.
 
 Finally, more threads **doesn't** always mean better performance. After we increased thread to 4, time taking for one multiplication fluctuates but does not have any real decline. The reason is there is only a limit number of physical cores inside each computer, when the number of threads goes up too high, the overhead in creating and synchronize threads will overshadowed any benefits we gain.
+
+### Blocking
+```{r, blocking-shape, include=F}
+```
+In the last section, we will concentrate ourselves on the impact of `BLOCK` size to overall performance. We will vary the `BLOCK` size in a power of 2, from `r replace_inline_code("s", blocking_blocks[1])` to `r replace_inline_code("s", tail(blocking_blocks, 1))`
+```{r, blocking-output, echo=F}
+```
+```{r, blocking-plot, echo=F, fig.cap="Computational time in function of BLOCK size"}
+blocking_plot
+```
+
+We see clearly that as `BLOCK` size grows, the performance generally becomes better but get worse after `BLOCK` size grows to approximately $2^{10}$. As explained in the [section 1](#cache-blocking), `BLOCK` should not be too small and neither too large.
