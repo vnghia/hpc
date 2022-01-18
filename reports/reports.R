@@ -293,3 +293,52 @@ threading_plot <- threading_df %>%
   ylab("Time (s)") +
   theme(legend.position = "bottom", legend.box = "vertical") +
   scale_color_manual(values = turbo(4))
+
+## ---- blocking-shape ----
+blocking_blocks <- 0:10
+
+## ---- blocking-output ----
+blocking_db <- DBOpenMP(
+  algos = c(
+    Algo$tiled
+  ), Ms = default_m,
+  Ks = default_k, Ns = default_n, blocks = as.integer(2^blocking_blocks),
+  omps = default_omps, schedules = default_schedule, chunks = default_chunk,
+  num_threadss = default_num_threads
+)
+blocking_psuedo_db <- DBOpenMP(
+  algos = c(
+    Algo$saxpy, Algo$blas
+  ), Ms = default_m,
+  Ks = default_k, Ns = default_n, blocks = default_block,
+  omps = list(T), schedules = default_schedule, chunks = default_chunk,
+  num_threadss = default_num_threads
+)$to_df(c(
+  "algo", "time", "omp"
+), F) %>%
+  crossing(block = 2^blocking_blocks) %>%
+  as.data.frame()
+
+blocking_df <- rbind(blocking_db$to_df(c(
+  "algo", "time", "omp", "block"
+), F), blocking_psuedo_db)
+
+blocking_plot <- blocking_df %>%
+  ggplot(aes(
+    x = block, y = time, shape = omp,
+    color = algo, group = interaction(
+      omp,
+      algo
+    )
+  )) +
+  geom_line(alpha = 0.75) +
+  geom_point(size = 2, alpha = 0.9) +
+  scale_x_continuous(
+    trans = log2_trans(),
+    breaks = trans_breaks("log2", function(x) 2^x),
+    labels = trans_format("log2", math_format(2^.x))
+  ) +
+  xlab("Block size") +
+  ylab("Time (s)") +
+  theme(legend.position = "bottom") +
+  scale_color_manual(values = turbo(4))
