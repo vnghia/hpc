@@ -1,20 +1,22 @@
-#!/usr/bin/env python3
+import os
+import sys
+import time
 
+import matplotlib.pyplot as plt
 import numpy as np
 import scipy.sparse as ssp
-import matplotlib.pyplot as plt
 from mpi4py import MPI
-import time
-import sys
-import os
 
 # Some options
 os.environ["OMP_NUM_THREADS"] = "1"
 os.environ["NUMEXPR_NUM_THREADS"] = "1"
 os.environ["MKL_NUM_THREADS"] = "1"
-np.set_printoptions(precision=3, linewidth=np.inf)
+np.set_printoptions(precision=3)
+
 
 # Basic Linear Algebra operations
+
+
 def norm1(u):
     return np.sum(np.abs(u))
 
@@ -28,6 +30,8 @@ def dot_product(u, v):
 
 
 # Basic Linear Algebra operations distributed using MPI
+
+
 def norm1_mpi(u, comm=MPI.COMM_WORLD):
     return  # TO BE FINISHED
 
