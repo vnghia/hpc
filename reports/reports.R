@@ -10,12 +10,15 @@ library(viridis)
 
 theme_set(theme_ipsum(base_family = "") +
   theme(axis.title.x = element_text(
-    hjust = 0.5,
-    size = 11
+    hjust = 0.5
   ), axis.title.y = element_text(
-    hjust = 0.5,
-    size = 11
-  ), ))
+    hjust = 0.5
+  ), plot.margin = margin(
+    t = 0.5, r = 2, b = 0.5, l = 2, "cm"
+  )))
+
+knitr::opts_chunk$set(dev = "tikz")
+options(tikzDefaultEngine = "luatex")
 
 source("utils.R")
 source_python("utils.py")
@@ -208,7 +211,8 @@ sequential_plot <- sequential_df %>%
   xlab("M = K = N") +
   ylab("Time (s)") +
   theme(legend.position = "bottom") +
-  scale_color_manual(values = turbo(4))
+  scale_color_manual(values = turbo(4)) +
+  scale_shape_discrete(labels = c("F", "T"))
 
 ## ---- sequential-last-shape-output
 sequential_db$to_df(c(
@@ -341,4 +345,5 @@ blocking_plot <- blocking_df %>%
   xlab("Block size") +
   ylab("Time (s)") +
   theme(legend.position = "bottom") +
-  scale_color_manual(values = turbo(4))
+  scale_color_manual(values = turbo(4)) +
+  scale_shape_discrete(labels = c("F", "T"))
