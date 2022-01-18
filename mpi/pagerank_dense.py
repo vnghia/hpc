@@ -1,8 +1,6 @@
 import os
-import sys
 import time
 
-import matplotlib.pyplot as plt
 import numpy as np
 import scipy.sparse as ssp
 from mpi4py import MPI
@@ -32,15 +30,24 @@ def init_H(p=1):
 
 
 def norm1(u, comm=MPI.COMM_WORLD):
-    return  # TO BE FINISHED
+    norm = np.sum(np.abs(u))
+    result = np.empty(1)
+    comm.Allreduce(norm, result, MPI.SUM)
+    return result
 
 
 def norm2(u, comm=MPI.COMM_WORLD):
-    return  # TO BE FINISHED
+    norm = np.dot(u, u)
+    result = np.empty(1)
+    comm.Allreduce(norm, result, MPI.SUM)
+    return np.sqrt(result)
 
 
 def dot_product(u, v, comm=MPI.COMM_WORLD):
-    return  # TO BE FINISHED
+    product = np.dot(u, v)
+    result = np.empty(1)
+    comm.Allreduce(product, result, MPI.SUM)
+    return result
 
 
 # Matrix/Vector product
@@ -48,15 +55,46 @@ def matvec(H, x):
     return H @ x
 
 
-# Mpi All to All
-def mpi_all_to_all(u, v, comm=MPI.COMM_WORLD):
-    # Gather version
-    # TO BE FINISHED
-    # AllGather version
-    # TO BE FINISHED
-    # ISend/IRecv version
-    # TO BE FINISHED
-    return u
+# MPI All to All Gather version
+def mpi_all_to_all_gather(x, xd, comm=MPI.COMM_WORLD):
+    for i in range(comm.size):
+        comm.Gather(xd, x, root=i)
+    return x
+
+
+# MPI All to All Allgather version
+def mpi_all_to_all_allgather(x, xd, comm=MPI.COMM_WORLD):
+    comm.Allgather(xd, x)
+    return x
+
+
+# MPI All to All ISend/IRecv version
+def mpi_all_to_all_isend_irecv(x, xd, comm=MPI.COMM_WORLD):
+    size = comm.size
+    req_send = np.full(size, MPI.REQUEST_NULL)
+    req_recv = np.full(size, MPI.REQUEST_NULL)
+
+    for k in range(size):
+        req_send[k] = comm.Isend(xd, dest=k, tag=comm.rank)
+
+    shapes = comm.allgather(np.shape(xd)[0])
+    start, end = 0, shapes[0]
+    for k in range(size):
+        req_recv[k] = comm.Irecv(x[start:end], source=k, tag=k)
+        if k < size - 1:
+            start = end
+            end += shapes[k + 1]
+
+    assert MPI.Request.Waitall(req_send)
+    assert MPI.Request.Waitall(req_recv)
+    return x
+
+
+# Matrix/Vector product distributed using MPI
+def matvec_mpi(H, x, n, comm=MPI.COMM_WORLD, mpi_all_to_all=mpi_all_to_all_gather):
+    xall = np.zeros(n)
+    xall = mpi_all_to_all(xall, x, comm)
+    return H @ xall
 
 
 # Define a function that return the vector index of the dangling nodes
@@ -66,21 +104,38 @@ def dangling_nodes(H):
 
 # Define the Google matrix in dense format
 def google_matrix_dense(M, alpha=0.85):
-    # TO BE FINISHED
-    return alpha * M.A  # + #TO BE FINISHED
+    d = dangling_nodes(M)
+    n = np.shape(M)[0]
+    e = np.ones(n)
+    return alpha * M.A + alpha / n * np.outer(d, e) + (1 - alpha) / n * np.outer(e, e)
 
 
 # Power Iteration Method
 def power_iteration(
-    matvec, G, u, v, start, end, comm=MPI.COMM_WORLD, tol=1e-8, itmax=200
+    matvec,
+    G,
+    u,
+    v,
+    start,
+    end,
+    comm=MPI.COMM_WORLD,
+    mpi_all_to_all=mpi_all_to_all_allgather,
+    tol=1e-8,
+    itmax=200,
+    log=False,
 ):
     t = time.time()
     it = 0
     diff_norm = 2 * tol
+    l = 0
     while it < itmax and diff_norm > tol:
-        # TO BE FINISHED
+        v = matvec(G.T[start:end], u)
+        l = dot_product(v, u[start:end], comm)
+        v = (1 / norm2(v, comm)) * v
+        diff_norm = norm2(u[start:end] - v, comm)
+        u = mpi_all_to_all(u, v, comm)
         it += 1
-    if comm.rank == 0:
+    if comm.rank == 0 and log:
         print("\nnumber of iterations %3d" % it)
         print("residual = %7.2e" % diff_norm)
         print("eigenvalue = %11.6e" % l)
@@ -90,7 +145,7 @@ def power_iteration(
 
 
 #  Main
-def main():
+def pagerank_dense_main(mpi_all_to_all=mpi_all_to_all_allgather, log=False):
 
     # MPI initialization
     comm = MPI.COMM_WORLD
@@ -118,8 +173,11 @@ def main():
 
     # Call the power iteration method with Google matrix
     u = mpi_all_to_all(u, v)
-    l, u = power_iteration(matvec, Gdense, u, v, start, end)
+    ev, u = power_iteration(
+        matvec, Gdense, u, v, start, end, comm, mpi_all_to_all, log=log
+    )
+    np.testing.assert_almost_equal(ev, 1)
 
 
 if __name__ == "__main__":
-    main()
+    pagerank_dense_main()
