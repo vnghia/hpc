@@ -1,18 +1,18 @@
-#!/usr/bin/env python3
+import os
+import sys
+import time
 
+import matplotlib.pyplot as plt
 import numpy as np
 import scipy.sparse as ssp
-import matplotlib.pyplot as plt
 from mpi4py import MPI
-import time
-import sys
-import os
 
 # Some options
 os.environ["OMP_NUM_THREADS"] = "1"
 os.environ["NUMEXPR_NUM_THREADS"] = "1"
 os.environ["MKL_NUM_THREADS"] = "1"
-np.set_printoptions(precision=3, linewidth=np.inf)
+np.set_printoptions(precision=3)
+
 
 # Initialize the matrix with external data
 def init_H(p=1):
