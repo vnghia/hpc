@@ -20,7 +20,7 @@ theme_set(theme_ipsum(base_family = "") +
 knitr::opts_chunk$set(dev = "tikz")
 options(tikzDefaultEngine = "luatex")
 
-source("utils.R")
+source("utils.r")
 source_python("utils.py")
 source_python("openmp.py")
 
