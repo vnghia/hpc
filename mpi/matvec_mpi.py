@@ -1,8 +1,5 @@
 import os
-import sys
-import time
 
-import matplotlib.pyplot as plt
 import numpy as np
 import scipy.sparse as ssp
 from mpi4py import MPI
@@ -33,37 +30,61 @@ def matvec(H, x):
     return H @ x
 
 
-# Matrix/Vector product distributed using MPI
-def matvec_mpi(H, x, n, comm=MPI.COMM_WORLD):
-    xall = np.zeros(n)
-    xall = mpi_all_to_all(xall, x)
-    return H @ xall
-
-
-# Mpi All to All
-def mpi_all_to_all(x, xd, comm=MPI.COMM_WORLD):
-    # Gather version
-    # TO BE FINISHED
-    # AllGather version
-    # TO BE FINISHED
-    # ISend/IRecv version
-    # TO BE FINISHED
+# MPI All to All Gather version
+def mpi_all_to_all_gather(x, xd, comm=MPI.COMM_WORLD):
+    for i in range(comm.size):
+        comm.Gather(xd, x, root=i)
     return x
 
 
+# MPI All to All Allgather version
+def mpi_all_to_all_allgather(x, xd, comm=MPI.COMM_WORLD):
+    comm.Allgather(xd, x)
+    return x
+
+
+# MPI All to All ISend/IRecv version
+def mpi_all_to_all_isend_irecv(x, xd, comm=MPI.COMM_WORLD):
+    size = comm.size
+    req_send = np.full(size, MPI.REQUEST_NULL)
+    req_recv = np.full(size, MPI.REQUEST_NULL)
+
+    for k in range(size):
+        req_send[k] = comm.Isend(xd, dest=k, tag=comm.rank)
+
+    shapes = comm.allgather(np.shape(xd)[0])
+    start, end = 0, shapes[0]
+    for k in range(size):
+        req_recv[k] = comm.Irecv(x[start:end], source=k, tag=k)
+        if k < size - 1:
+            start = end
+            end += shapes[k + 1]
+
+    assert MPI.Request.Waitall(req_send)
+    assert MPI.Request.Waitall(req_recv)
+    return x
+
+
+# Matrix/Vector product distributed using MPI
+def matvec_mpi(H, x, n, comm=MPI.COMM_WORLD, mpi_all_to_all=mpi_all_to_all_gather):
+    xall = np.zeros(n)
+    xall = mpi_all_to_all(xall, x, comm)
+    return H @ xall
+
+
 #  Main
-def main():
+def matvec_mpi_main(i=1, mpi_all_to_all=mpi_all_to_all_gather, log=False):
 
     # MPI initialization
     comm = MPI.COMM_WORLD
     rank = comm.rank
     size = comm.size
 
-    # MAtrix and Size initialization
-    H = init_H(1)
+    # Matrix and Size initialization
+    H = init_H(i)
     n = H.shape[0]
 
-    if rank == 0:
+    if rank == 0 and log:
         print(ssp.csr_matrix.todense(H))
 
     # Creation of a vector x (same for all processes)
@@ -75,11 +96,6 @@ def main():
         x = np.zeros(n)
         comm.Recv(x, source=0, tag=rank)
 
-    # Computation of matrix/vector product
-    if rank == 0:
-        print("x           = ", x)
-        print("H.T.dot(x)  = ", matvec(H.T, x))
-
     # Distribution over MPI processes along matrix rows
     nd = int(n / size + 0.5)
     start = rank * nd
@@ -88,16 +104,36 @@ def main():
         end = n
         nd = end - start
     comm.Barrier()
-    print("For rank %d, start = %d, end = %d" % (rank, start, end))
+    if log:
+        print("For rank %d, start = %d, end = %d" % (rank, start, end))
 
     # Creation of the distributed vector xd and distributed matrix Hd (along rows)
     xd = x[start:end]
-    Hd = H.T[start:end, :]
+    Hd = H.T[start:end]
 
     # Computation of MPI norms/dot product
-    print("Rank %d, xd           = " % rank, xd)
-    print("Rank %d, Hd.T.dot(xd) = " % rank, matvec_mpi(Hd, xd, n))
+    rd = matvec_mpi(Hd, xd, n, comm, mpi_all_to_all)
+    if log:
+        print("Rank %d, xd           = " % rank, xd)
+        print("Rank %d, Hd.T.dot(xd) = " % rank, rd)
+
+    result_mpi = np.zeros(n) if rank == 0 else None
+    comm.Gather(rd, result_mpi, root=0)
+
+    # Computation of matrix/vector product
+    if rank == 0:
+        result = matvec(H.T, x)
+        np.testing.assert_almost_equal(result_mpi, result)
+        if log:
+            print("x           = ", x)
+            print("H.T.dot(x)  = ", result)
+            print("matvec_mpi  = ", result_mpi)
 
 
 if __name__ == "__main__":
-    main()
+    for mpi_all_to_all in [
+        mpi_all_to_all_gather,
+        mpi_all_to_all_allgather,
+        mpi_all_to_all_isend_irecv,
+    ]:
+        matvec_mpi_main(1, mpi_all_to_all)
