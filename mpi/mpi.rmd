@@ -1,0 +1,87 @@
+---
+classoption: a4paper, xcolor = usenames,dvipsnames
+geometry: margin=2.5cm
+output:
+  bookdown::pdf_document2:
+    papersize: a4
+    fig_caption: true
+    highlight: tango
+    keep_tex: false
+    number_sections: true
+    pandoc_args:
+      - "--listings"
+    toc_depth: 3
+    toc: false
+    latex_engine: lualatex
+    includes:
+      in_header: ../reports/preamble.tex
+      before_body: ../reports/cover.tex
+---
+```{r, chunk, include=F, cache=F}
+knitr::read_chunk(here::here("mpi", "mpi.r"))
+```
+
+```{r, init, include=F}
+```
+
+# MPI
+
+In this section, we will focus on the optimization and parallelization of Google PageRank problem, more precisely, the calculation of the eigenvectors associated with the highest eigenvalue of a stochastic matrix that has some special attributes.
+
+## Introduction
+
+First of all, we mention briefly the problem. Given a web page $P$ and a measure of its importance $I(P)$,
+called the page's PageRank. Suppose that page $P_{i}$ has $\ell_{i}$ links. If one of those links is to page $P_{j}$, then $P_{i}$ will pass on $frac{1}{\ell_{i}}$ of its importance to $P_{j}$. The importance ranking of $P_{j}$ is then the sum of all the contributions made by pages linking to it. That is, if we denote the set of pages linking to $P_{j}$ by $B_{j}$,
+$$
+I(P_{j}) = {\sum_{P_{i} \in B_{j}}\frac{I(P_{i})}{\ell_{i}}}
+$$
+
+Mathematically, if we define a matrix $H$ where:
+$$
+H_{i,j} =
+\begin{cases}
+\frac{1}{\ell_{i}} & \text{ if } P_{i} \in B_{j}\\
+0 & \text{ otherwise }
+\end{cases}
+$$
+
+$H$ is called "hyperlink matrix" and we have $\pi^{\intercal} = \pi^{\intercal} H$ where $\pi_i = I(P_{i})$, a vector contains measure of importance from all pages. In the other words, $(\pi^{\intercal})^{\intercal} = (\pi^{\intercal} H)^{\intercal} \implies \pi = H^{\intercal} \pi$ or $\pi$ is an eigenvector of $H^{\intercal}$ whose eigenvalue is $1$.
+
+In addition, we could prove that the largest eigenvalue of $H^{\intercal}$ less than or equal to $1$. Indeed, if $\lambda$ is an eigenvalue of $H^{\intercal}$ and $u$ is its eigenvector (we will choose a vector whose the sum of all of its components is positive), as we can see all entries of $H$ are non negative and the sum of of each row is either $1$ or $0$ (if that page has no link to other page), we have:
+
+$$
+\begin{aligned}
+& H^{\intercal} u = \lambda u \\
+\iff &
+\begin{pmatrix}
+H_{1,1} & \dots & H_{n,1} \\
+\vdots & \ddots & \vdots \\
+H_{1,n} & \dots & H_{n,n} \\
+\end{pmatrix}
+\begin{pmatrix}
+u_{1} \\
+\vdots \\
+u_{n} \\
+\end{pmatrix}
+=
+\begin{pmatrix}
+\lambda u_{1} \\
+\vdots \\
+\lambda u_{n} \\
+\end{pmatrix} \\
+\implies &
+\begin{cases}
+H_{1,1} u_{1} + \dots + H_{n,1} u_{n} &= \lambda u_{1} \: (1) \\
+&\vdots \\
+H_{1,n} u_{1} + \dots + H_{1,n} u_{n} &= \lambda u_{n} \: (n) \\
+\end{cases}\\
+& \text{ By summing up from } (1) \text{ to } (n) \, \\
+\implies &
+u_{1} (\sum_{i=1}^n H_{1,i}) + \dots + u_{n} (\sum_{i=1}^n H_{n,i}) = \lambda (\sum_{i=1}^n u_{i}) \\
+& \text{As } \sum_{i=1}^n H_{j,i} = \text{ either } 0 \text{ or } 1 \: \forall j \\
+\implies & \sum_{i=1}^n u_{i} \geq \lambda (\sum_{i=1}^n u_{i}) \\
+\implies & \lambda \leq 1 \\
+\end{aligned}
+$$
+
+Futhermore, if $\sum_{i=1}^n H_{j,i} = 1 \: \forall j$, we have $\lambda = 1$ is the largest eigenvalue of $H^{\intercal}$. Therefore, we return to the problem of finding the eigenvector associated with the largest eigenvalue of $H^{\intercal}$, which already has a very simple but powerful solution called "Power Iteration" that we will use in next sections. Each component of that vector is a measure of importance of one page and the index of the largest element inside that vector will also be the index of the most meaningful page.
