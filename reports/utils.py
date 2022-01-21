@@ -1,5 +1,8 @@
+import subprocess
 from fractions import Fraction
+from typing import Optional
 
+import nbformat
 import numpy as np
 
 
@@ -39,3 +42,26 @@ def pmatrix(a: np.ndarray, is_frac: bool = False) -> str:
             latex += r"\\" + "\n"
     latex += "\n" + r"\end{pmatrix}"
     return latex
+
+
+def read_from_notebook(
+    path: str, tags: Optional[list[str]] = None, commit: str = "HEAD"
+) -> list[list[str]]:
+    subprocess.run(["git", "checkout", commit, path], check=True)
+    sources = []
+    with open(path, "r") as f:
+        nb = nbformat.read(f, nbformat.NO_CONVERT)
+        cells = nb["cells"]
+        for cell in cells:
+            if not tags:
+                if cell["cell_type"] == "code":
+                    sources.append(cell["source"].splitlines())
+            else:
+                metadata = cell["metadata"]
+                if "tags" in metadata:
+                    for tag in tags:
+                        if tag in metadata["tags"]:
+                            sources.append(cell["source"].splitlines())
+                            break
+    subprocess.run(["git", "checkout", "HEAD", path], check=True)
+    return sources
