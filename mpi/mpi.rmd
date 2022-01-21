@@ -85,3 +85,49 @@ u_{1} (\sum_{i=1}^n H_{1,i}) + \dots + u_{n} (\sum_{i=1}^n H_{n,i}) = \lambda (\
 $$
 
 Futhermore, if $\sum_{i=1}^n H_{j,i} = 1 \: \forall j$, we have $\lambda = 1$ is the largest eigenvalue of $H^{\intercal}$. Therefore, we return to the problem of finding the eigenvector associated with the largest eigenvalue of $H^{\intercal}$, which already has a very simple but powerful solution called "Power Iteration" that we will use in next sections. Each component of that vector is a measure of importance of one page and the index of the largest element inside that vector will also be the index of the most meaningful page.
+
+## Power Iteration Method
+
+```{r, mpi-function-definition, include=F}
+```
+```{r, init-read-notebook, include=F}
+```
+
+First, we choose a matrix $H$ as following for testing:
+$$
+```{r, init-introduction-matrix, results="asis", echo=F}
+```
+$$
+
+As proved about, since every sum of a row of $H$ is equal to $1$, the largest eigenvalue will be $1$ and therefore, we could apply this method to find out the PageRank score of each page.
+
+The method could be described as follow:
+
+```{=latex}
+\begin{algorithm}[H]
+  \KwData{A diagonalizable matrix $G$}
+  \KwResult{Largest eigenvalue and associated eigenvector}
+  $u \leftarrow random$ \;
+  $u \leftarrow \frac{u}{\left\lVert u \right\rVert}$ \;
+  \While{$\left\Vert u-v\right\Vert >\epsilon$}{
+    compute $v=Gu$ \;
+    define $\lambda=u^{\intercal}v$ and $u=\frac{v}{\Vert v\Vert}$ \;
+  }
+\end{algorithm}
+```
+
+And its implementation in `Python`:
+```{python, power-iteration-method-base, code=nb_sources[[4]][c(2:12,19,39:41,43)], eval=F}
+```
+
+```{r, power-iteration-introduction-matrix, include=F}
+```
+
+Here, we choose to keep the original power iteration method by calculating $v=Gu$ instead of $v=G^{\intercal}u$. It helps us prevent some confusions. Since we want to calculate the eigenvector of $H^{\intercal}$, we could pass $G \leftarrow H^{\intercal}$. From the output below, the method has successfully converged to $1$ and the most meaningful page is the page number `r power_introduction_result[[2]]$important`.
+
+```{r, power-introduction-matrix-output, echo=F}
+```
+
+In addition, we check the correctness by calling the function `eigs` from `scipy.sparse.linalg`. As we can see, the two outputs are the similar. Our implementation of power iteration is correct.
+```{python, power-introduction-matrix-correctness, code=nb_sources[[2]][c(1,3:4, 6:7)]}
+```
