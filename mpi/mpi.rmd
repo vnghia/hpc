@@ -131,3 +131,114 @@ Here, we choose to keep the original power iteration method by calculating $v=Gu
 In addition, we check the correctness by calling the function `eigs` from `scipy.sparse.linalg`. As we can see, the two outputs are the similar. Our implementation of power iteration is correct.
 ```{python, power-introduction-matrix-correctness, code=nb_sources[[2]][c(1,3:4, 6:7)]}
 ```
+
+## Google matrix
+```{r, google-matrix, include=F}
+```
+
+In general, there is no guarantee that the algorithm will work. As we can see in the introduction, if one web page does not link to any other page or also called as a dangling node, the sum of that row in the hyperlink matrix will be $0$, the largest eigenvalue will be eventually $<$ 1 and therefore we fail. To address this problem, we introduce another type of matrix, so-called Google matrix and use this matrix for calculating the PageRank. It has the following property:
+$$
+\begin{aligned}
+G &= \alpha(H + \frac{1}{n} d e^{\intercal}) + (1 - \alpha)\frac{1}{n}e e^{\intercal} \\
+&\text{Where} \\
+H&: \text{ a very sparse hyperlink matrix.} \\
+\alpha&: \text{ a scaling parameter between 0 and 1 (generally set at the “magic” value of $0.85$).} \\
+d&: \text{ the binary dangling node row vector ($d_{i}$ = 1 if page $i$ is a dangling node and 0 otherwise).} \\
+e^{\intercal}&: \text{ the row vector of all entries 1.} \\
+\end{aligned}
+$$
+
+We could easily prove that $G$ is stochastic, i.e, sum of each row equals to $1$. Indeed,
+$$
+\begin{aligned}
+\sum_{i=1}^n G_{i,j} &= \alpha (\sum_{i=1}^n H_{i,j} + \frac{1}{n} \sum_{1}^n d_{j}) + (1 - \alpha) \\
+\implies \sum_{i=1}^n G_{i,j} &= \alpha ((\sum_{i=1}^n H_{i,j}) + d_{j}) + 1 - \alpha \\
+\text{Since one of } \sum_{i=1}^n H_{i,j} \text{ or } d_{j} &\text{ equals to 1 and the other term equals to zero } \\
+\implies \sum_{i=1}^n G_{i,j} &= \alpha + 1 - \alpha \\
+\implies \sum_{i=1}^n G_{i,j} &= 1
+\end{aligned}
+$$
+
+We have two approaches for this problem.
+
+### Dense
+
+In this approach, we compute in the "traditional" way, i.e, we construct the matrix $G$ and pass it to the power iteration method. The output is shown below.
+```{r, google-dense, echo=F}
+```
+
+### Sparse
+
+On the other hand, we could take advantage of two factors: the sparsity of $H$ and the nature of the matrices $de^{\intercal}$ and $ee^{\intercal}$. First, we note that we want to calculating the eigenvector of 
+$$G^{\intercal} = \alpha(H^{\intercal} + \frac{1}{n} e d^{\intercal}) + (1 - \alpha)\frac{1}{n}e e^{\intercal}$$
+The matrix multiplication between $G^{\intercal}$ and $x$ turns out to be 
+$$G^{\intercal}x = \alpha H^{\intercal}x + \alpha \frac{1}{n} e d^{\intercal} x + (1 - \alpha)\frac{1}{n}e e^{\intercal} x$$
+Futhermore, give $a$ an arbitrary column vector,
+$$
+\begin{aligned}
+e a^{\intercal} x &=
+\begin{pmatrix}
+1 \\
+\vdots \\
+1 \\
+\end{pmatrix}
+\begin{pmatrix}
+a_{1} & \dots & a_{n} \\
+\end{pmatrix}
+\begin{pmatrix}
+x_{1} \\
+\vdots \\
+x_{n} \\
+\end{pmatrix} \\
+&=
+\begin{pmatrix}
+a_{1} & \dots & a_{n} \\
+\vdots & \ddots & \vdots \\
+a_{1} & \dots & a_{n} \\
+\end{pmatrix}
+\begin{pmatrix}
+x_{1} \\
+\vdots \\
+x_{n} \\
+\end{pmatrix} \\
+&=
+\begin{pmatrix}
+a_{1}x_{1} + \dots + a_{n}x_{n} \\
+\vdots \\
+a_{1}x_{1} + \dots + a_{n}x_{n}  \\
+\end{pmatrix} \\
+&=
+\langle a, x \rangle
+\begin{pmatrix}
+1 \\
+\vdots \\
+1  \\
+\end{pmatrix}
+\end{aligned}
+$$
+Therefore, instead of calculating $e d^{\intercal} x$ and $e e^{\intercal}x$, we could just calculate two scalars $\langle d, x \rangle$ and $\langle e, x \rangle$. Thank to the fact that in `Python` world, an operation between an array and a scalar will be resulted in an element-wise operation, we have our desired matrix multiplication. Its implementation in `Python` is:
+```{python, matvec-sparse-implement, code=nb_sources[[7]][c(2:9)], eval=F}
+```
+
+The output of this method is shown below.
+```{r, google-sparse, echo=F}
+```
+
+### Benchmarking
+```{r, google-dense-sparse, include=F}
+```
+
+We see the difference between two methods in term of performance is quite small, given that our matrix is too tiny. We varied the initial matrix $H$ and observeb that, while the sparse approach performs worse in small cases, it gets better when the size of $H$ increases. That could be explained by the fact that the density of $H$ (number of non-zero elements) decreases when the size of $H$ is bigger (based on the external data). Since $0$ is a really special number, a sparsity-aware matrix could take advantage of that fact and perform a lot faster. In our case, the speed-up comes from two factors:
+
+- `M.dot(x)` as $M \leftarrow H$ is a sparse matrix, which means `M` contains only non-zero entries. Therefore while normal algorithm have to do operations with every elements of `M` and `x`, the sparse algorithm will only doing operations between those elements of `M` and `x` ($0$ multiplies something is $0$ anyway) which reduce significanly the number of operations required. if we convert $H$ to a normal matrix beforehand, the performance will be similar to the dense approach.
+- When the size of $H$ is too big to be fitted within the RAM, we have an Out Of Memory (OOM) if we try the first approach. The last matrix `ucam2006`, the dense version needs roughly `r to_float_str(google_dense_sparse_df$memory[[9]])` $\si{\giga\byte}$ which is impossible on almost computers. On the opposite side, the second approach only needs a fraction of that amount of memory to store the matrix $H$ since its density is relatively low.
+
+Below is a table that shown the results above where:
+
+- density: the number of non-zero elements of $H$ per mille.
+- shape: the number of rows of $H$ (and also of columns because $H$ is a square matrix).
+- important: the most meaningful page, we show it here just for asserting the true result.
+- memory: the amount of RAM memory in $\si{\giga\byte}$ that is needed to fit the dense version of that matrix.
+
+```{r, google-dense-sparse-output, echo=F}
+```
