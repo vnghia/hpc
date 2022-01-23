@@ -10,6 +10,7 @@ from decimal import Decimal
 from hashlib import sha256
 from typing import TYPE_CHECKING, Any, ClassVar, Optional, Sequence, Type, TypeVar, cast
 
+import numpy as np
 import pandas as pd
 import sqlalchemy
 from sqlalchemy import Boolean, Column, Float, Integer, String
@@ -66,6 +67,7 @@ class OpenMP(Base):
     schedule = Column(Enum(Schedule), nullable=True, primary_key=True)
     chunk = Column(Integer, nullable=True, primary_key=True)
     compiler = Column(Enum(Compiler), nullable=False, primary_key=True)
+    multiple_times = Column(Integer, nullable=False, primary_key=True)
     hash = Column(String(10), nullable=False)
 
 
@@ -91,6 +93,7 @@ class BinaryOpenMP:
     schedule: Optional[Schedule] = Schedule.static
     chunk: Optional[int] = 0
     compiler: Compiler = Compiler.clang if sys.platform == "darwin" else Compiler.gcc
+    multiple_times: int = 100
 
     hash: Optional[str] = None
 
@@ -134,6 +137,7 @@ class BinaryOpenMP:
             .filter(OpenMP.K == self.K)
             .filter(OpenMP.N == self.N)
             .filter(OpenMP.compiler == self.compiler)
+            .filter(OpenMP.multiple_times == self.multiple_times)
         )
         if self.algo == Algo.tiled:
             query = query.filter(OpenMP.block == self.block)
@@ -208,6 +212,7 @@ class BinaryOpenMP:
             schedule,
             chunk,
             compiler,
+            1,
             commit=commit,
         )
         command = ""
@@ -392,6 +397,7 @@ class BinaryOpenMP:
                 schedule=self.schedule,
                 chunk=self.chunk,
                 compiler=self.compiler,
+                multiple_times=self.multiple_times,
                 hash=self.hash,
             )
         else:
@@ -403,9 +409,25 @@ class BinaryOpenMP:
         force_recompile: bool = False,
     ):
         try:
+            if self.__has_result():
+                return
+            times = np.empty(self.multiple_times)
+            norms = np.empty_like(times)
+            gflopss = np.empty_like(times)
             self.__compile(print_array, force_recompile)
-            self.__run_raw()
-            self.__parse()
+            for i in range(self.multiple_times):
+                print(i)
+                self.__run_raw()
+                self.__parse()
+                assert self.__has_result()
+                times[i] = self.time
+                norms[i] = self.norm
+                gflopss[i] = self.gflops
+                self.clear_result()
+            assert np.all(norms == norms[0])
+            self.time = np.average(times).astype(float)
+            self.norm = norms[0]
+            self.gflops = np.average(gflopss).astype(float)
         except BaseException as exec:
             print("Current binary options: ", self)
             raise exec
@@ -468,12 +490,15 @@ class DBOpenMP:
             Compiler.clang if sys.platform == "darwin" else Compiler.gcc
         ]
     )
+    multiple_times: int = 100
 
     source_path: str = "../openmp/blas3.c"
     executable_prefix: str = "bin/openmp/"
     print_array: bool = False
     force_recompile: bool = False
     upsert: bool = False
+
+    outputs: set[KT] = field(default_factory=set)
 
     Binaries: ClassVar[
         dict[
@@ -566,8 +591,7 @@ class DBOpenMP:
                 schedule = None
                 chunk = None
             key = (algo, M, K, N, block, omp, num_threads, schedule, chunk, compiler)
-            print(key, end="", flush=True)
-            sys.stdout.write("\033[2K\033[1G")
+            print(key)
             if key not in self.Outputs:
                 binary = BinaryOpenMP(
                     Session=self.Session,
@@ -581,6 +605,7 @@ class DBOpenMP:
                     schedule=schedule,
                     chunk=chunk,
                     compiler=compiler,
+                    multiple_times=self.multiple_times,
                 )
                 binary.run(self.print_array, self.force_recompile)
                 binary.insert(self.upsert)
@@ -593,26 +618,28 @@ class DBOpenMP:
                 self.Binaries[key] = binary
 
             time, norm, gflops = self.Outputs[key]
-            new_df = pd.DataFrame(
-                {
-                    "algo": algo.name,
-                    "time": time,
-                    "norm": norm,
-                    "gflops": gflops,
-                    "M": M,
-                    "K": K,
-                    "N": N,
-                    "block": block,
-                    "omp": omp,
-                    "num_threads": num_threads,
-                    "schedule": schedule.name if schedule else pd.NA,
-                    "chunk": chunk,
-                    "compiler": compiler.name,
-                },
-                index=[0],
-            )
-            new_df = self.__cast_df(new_df)
-            self.df = self.df.append(new_df, ignore_index=True).drop_duplicates()
+            if key not in self.outputs:
+                new_df = pd.DataFrame(
+                    {
+                        "algo": algo.name,
+                        "time": time,
+                        "norm": norm,
+                        "gflops": gflops,
+                        "M": M,
+                        "K": K,
+                        "N": N,
+                        "block": block,
+                        "omp": omp,
+                        "num_threads": num_threads,
+                        "schedule": schedule.name if schedule else pd.NA,
+                        "chunk": chunk,
+                        "compiler": compiler.name,
+                    },
+                    index=[0],
+                )
+                new_df = self.__cast_df(new_df)
+                self.df = self.df.append(new_df, ignore_index=True)
+                self.outputs.add(key)
 
     def to_df(
         self: DBOpenMP, colnames: Optional[Sequence[str]] = None, table: bool = True
