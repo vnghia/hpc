@@ -336,3 +336,80 @@ Although, `dot_product` produces a global result, it is still true because it is
 mpi_google_dense_sparse_plot
 ```
 First, both versions (non `MPI` and `MPI`) using the dense algorithm is defeated by the matrix `ucam2006` as explained above. Second, interestingly, when number of processes is `r mpi_np_default`, it took more time than non `MPI` version. This could be explained by the fact that `MPI` is optimized for a distributed cluster of machines but we are testing on only one computer, hence, the communication overhead overshaddowed any benefit it brought to us.
+
+## Further study: Matrix B
+This section, we explore another matrix that has some special constructions and we try to exploit them for a faster computation.
+
+### Introduction
+
+We define matrix $B$ size $kn$ as below (with $k$ processes and $n$ is the size of the submatrix that is owned processed in each process):
+$$
+B^{\intercal} =
+\begin{pmatrix}
+& \frac{1}{2} & \frac{1}{3} & \dots & \frac{1}{3} & \frac{1}{2} \\
+\frac{1}{kn - 1} && \frac{1}{3} &&& \\
+\frac{1}{kn - 1} & \frac{1}{2} && \ddots && \\
+\frac{1}{kn - 1} && \frac{1}{3} && \frac{1}{3} & \\
+\vdots &&& \ddots && \frac{1}{2} \\
+\frac{1}{n - 1} &&&& \frac{1}{3} \\
+\end{pmatrix}
+$$
+$B^{\intercal}$ has the following non-zeros entries:
+
+- the first column: consits of $0$ followed by $n - 1$ elements whose value is $\frac{1}{n-1}$.
+- the first row: consits of $0$ followed by an array that has $\frac{1}{2}$ at its head and tail; $\frac{1}{3}$ at other positions.
+- the first superdiagonal: the same array as the first row without the leading $0$.
+- the first subdiagonal: the same array as the first row except its tail, and the leading $0$ is replaced by $\frac{1}{n - 1}$.
+
+```{r, matrix-B-example, include=F}
+```
+For example, with `r paste("k = ", b_ex_np, sep="")` and `r paste("n = ", b_ex_size, sep="")`, we have $B^{\intercal}$:
+$$
+```{r, matrix-B-example-latex, echo=F, results="asis"}
+```
+$$
+And its corresponding matrix transition:
+```{r, matrix-B-example-graph, include=F}
+```
+```{r, matrix-B-example-graph-output, echo=F, fig.cap=paste("matrix transition of B when kn = ", b_ex_shape)}
+b_ex_plot
+```
+
+We could see easily that:
+
+- Matrix $B$ is non negative.
+- Matrix $B$ is stochastic $\forall kn$.
+- It doesn't contain any dangling node.
+- From 3 observations above, we conclude that largest eigenvalue of $B^{\intercal}$ is $1$.
+- Page 1 receives $\frac{1}{2}$ and \ of the importance of other pages while only share $\frac{1}{8}$ of its. Intuitively, it is safe to guess that page 1 is the most important page.
+
+That assumption is verified by the output followed.
+```{r, matrix-B-example-code, include=F}
+```
+```{r, matrix-B-example-output, echo=F}
+```
+
+### MPI-enabled
+
+Same as the Google matrix, we tried to exploit the special properties of $B^{\intercal}$. As before, we first try to divide $B^{\intercal}$ into n submatrices, each with $n$ rows and $kn$ columns. This is however, the same as the dense version and we lost the sparsity of $B^{\intercal}$. But we notice that apart from the top-most submatrix whose the first row contains only 1 $0$, the other submatrices are quite sparse. Therefore, we have three types of matrix here:
+
+* The first submatrix: nothing could be done here.
+* The last submatrix:
+  - There are $n$ elements $\frac{1}{kn - 1}$.
+  - There are $n$ elements of the first subdiagonal which lasts from $(kn - n)\textsuperscript{th}$ column to $(kn - 1)\textsuperscript{th}$ column.
+  - There are $n-1$ elements of the first superdiagonal which lasts from $(kn - n + 2)\textsuperscript{th}$ column to $kn\textsuperscript{th}$ column.
+  - From three observations above, we could remove a block from $2\textsuperscript{nd}$ column to $(kn - n - 1)\textsuperscript{th}$ column which is all zero, which left us a submatrix of size $n \times (n + 2)$.
+* The $i\textsuperscript{th}$ submatrix:
+  - There are $n$ elements $\frac{1}{kn - 1}$.
+  - There are $n$ elements of the first subdiagonal which lasts from $(in)\textsuperscript{th}$ column to $(in + n - 1)\textsuperscript{th}$ column.
+  - There are $n$ elements of the first superdiagonal which lasts from $(in + 2)\textsuperscript{th}$ column to $(in + n + 1)\textsuperscript{th}$ column.
+  - From three observations above, we only take the first column and the block from $(in)\textsuperscript{th}$ column to $(in + n + 1)\textsuperscript{th}$ column and remove everything else, which left us a submatrix of size $n \times (n + 3)$.
+
+In order to multiply matrix and vector with the modified submatrices, we have to modified $u$ as well because the length of $u$ needs to be the same as the number of columns of each submatrix inside each process (which is constant in the previous methods). It could be done easily by noting that even if we don't remove those blocks, they still contribute nothing to the result, as they are all zeros. Therefore, we could extract the corresponding indices from $u$, this is how we could take advantage of the sparsity of $B^{\intercal}$.
+
+There is one more problem to solve. We needs a modified gathering function. Note that apart from the first submatrix, vector $u$ inside other processes only contain a subset of the real $u$ (which is opposed to the previous method where $u$ is constant in size). Hence, we dicided to send everything to the process that holds the first submatrix in order to assemble from $v$ the real $u$, broadcast that to every other processes and then let each processed extracting the subset of $u$ they need. The exact code is shown below:
+
+```{python, code=read_from_commit(here::here("mpi", "pagerank_mpi.py"), c(77:90), commit = "e2628d0"), eval=F}
+```
+
+### Benchmarking

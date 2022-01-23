@@ -4,7 +4,9 @@ library(dplyr)
 library(reticulate)
 library(kableExtra)
 library(ggplot2)
+library(ggraph)
 library(hrbrthemes)
+library(network)
 library(stringr)
 library(tidyr)
 library(viridis)
@@ -248,3 +250,131 @@ mpi_google_dense_sparse_plot <- mpi_google_dense_sparse_df %>%
   scale_x_discrete(labels = c(paste("r", as.integer(10^c(1:4)),
     sep = ""
   ), "ucam2006"))
+
+## ---- matrix-B-example ----
+
+# define init_B
+py_run_string(paste(nb_sources[[8]][c(1:8)], collapse = "\n"))
+init_b <- function(size) {
+  reticulate::py_run_string(sprintf(
+    "B_R = init_B(%d)",
+    size
+  ))
+  return(reticulate::py$B_R)
+}
+b_ex_np <- 3L
+b_ex_size <- 3L
+b_ex_shape <- b_ex_np * b_ex_size
+b_ex <- as.matrix(init_b(b_ex_shape))
+
+## ---- matrix-B-example-latex ----
+writeLines(pmatrix(b_ex, T))
+
+## ---- matrix-B-example-graph ----
+b_ex_net <- as.network.matrix(b_ex)
+b_ex_frac <- MASS::fractions(b_ex[as.edgelist(b_ex_net)])
+b_ex_num_den <- str_split_fixed(attr(b_ex_frac, "fracs"),
+  "/",
+  n = 2
+)
+b_ex_label <- paste("$\\frac{", b_ex_num_den[, 1],
+  "}{", b_ex_num_den[, 2], "}$",
+  sep = ""
+)
+b_ex_net %e% "prob" <- b_ex_label
+b_ex_net %v% "names" <- get.vertex.attribute(
+  b_ex_net,
+  "vertex.names"
+)
+set.seed(0)
+b_ex_plot <- ggraph(b_ex_net) + geom_node_point(
+  size = 12.5,
+  colour = "grey"
+) + geom_node_text(aes(label = names)) +
+  theme_void() + geom_edge_arc(aes(
+    x = x, y = y,
+    xend = xend, yend = yend, end_cap = circle(
+      20,
+      "pt"
+    ), start_cap = circle(40, "pt"), label = prob
+  ),
+  arrow = arrow(
+    length = unit(5, "pt"), type = "closed",
+    angle = 20
+  ), strength = 0.2, label_size = 5
+  ) +
+  coord_fixed()
+
+## ---- matrix-B-example-code ----
+
+# define n (shape of B)
+py_run_string(sprintf("n = %d", b_ex_shape))
+# init B, u, v by n
+py_run_string(paste(nb_sources[[8]][c(12, 16, 17)],
+  collapse = "\n"
+))
+b_ex_output_path <- here::here(
+  "mpi", "bin", "output",
+  "b_ex.txt"
+)
+b_ex_result <- read_binary_mpi_output(
+  b_ex_output_path,
+  paste(nb_sources[[8]][19:20], collapse = "\n")
+)
+
+## ---- matrix-B-example-output ----
+writeLines(paste(b_ex_result[[1]], collapse = "\n"))
+
+## ---- B-dense ----
+b_matrix_params <- tibble(matrix = c(Matrix(6)), init = "")
+b_mpi_source <- here::here("mpi", "pagerank_mpi.py")
+b_algo_params <- tibble(algo = rep(c(Algo(1), Algo(3)),
+  each = 14
+), np = rep(4L, 2 * 14), s = rep(c(
+  gdense_mpi_source,
+  b_mpi_source
+), each = 14), shape = rep(2^(2:15), 2))
+b_params <- b_matrix_params %>%
+  crossing(b_algo_params)
+b_db <- DBMPI(
+  matrices =
+    b_params$matrix, shapes =
+    b_params$shape, algos =
+    b_params$algo, nps =
+    b_params$np, algo_sources =
+    b_params$s, inits =
+    b_params$init
+)
+b_df <-
+  b_db$to_df(c(
+    "matrix",
+    "algo", "np", "time"
+  ), F)
+b_plot <-
+  b_df %>% ggplot(aes(
+    x =
+      matrix, y = time, shape = as.factor(np), color
+    = algo, group = interaction(np, algo)
+  )) +
+  geom_line(alpha = 0.75) +
+  geom_point(
+    size = 2,
+    alpha = 0.9
+  ) +
+  xlab("Matrix") +
+  ylab("Time
+(s)") +
+  theme(
+    legend.position = "bottom",
+    legend.box = "vertical"
+  ) +
+  scale_color_manual(values = turbo(4)) +
+  scale_shape_discrete(name = "number of
+processes") +
+  scale_x_discrete(
+    labels =
+      c(
+        paste("r", as.integer(10^c(1:4)), sep = ""),
+        "ucam2006"
+      )
+  )
