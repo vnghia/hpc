@@ -242,3 +242,97 @@ Below is a table that shown the results above where:
 
 ```{r, google-dense-sparse-output, echo=F}
 ```
+
+## MPI-enabled
+
+Now, since, we has already taken advantage of the sparsity of matrix for optimizing the power iteration method, algorithm-level is now harder to optimize. However, we could try to fully exploit our hardware by parallelization, which will be easier. In this section, we concentrate ourselves in `MPI`, one technology that will allows us to achieve that.
+
+### Principal functions
+First, we will integrate `MPI` to 4 principal functions: $\| \cdot \|_1$, $\| \cdot \|_2$, $\langle \cdot,\cdot \rangle$ and `matvec` (which is essentially matrix multiplication with the second matrix is a vector).
+
+For the first 3 functions, the principle is simple, we calculate them with a subset of values in each process and reduce them into one at the end. For example, $\langle \cdot,\cdot \rangle$ could be calculated as follow:
+$$
+\begin{aligned}
+\langle x,y \rangle &= \sum_{i=1}^{kn} x_{i} y_{i} \\
+&= \sum_{i=1}^{k}\sum_{j=(i-1)n + 1}^{ni} x_{j} y_{j} \\
+&= \sum_{i=1}^{k} 
+\underbrace{
+\langle 
+\begin{pmatrix}
+x_{(i-1)n + 1} \\
+\vdots \\
+x_{in} \\
+\end{pmatrix}
+,
+\begin{pmatrix}
+y_{(i-1)n + 1} \\
+\vdots \\
+y_{in} \\
+\end{pmatrix}
+}_{\text{calculate in process } i}
+\rangle
+\end{aligned}
+$$
+Our implementation of those 3 functions with `MPI` is shown below. Note that `u` and `v` is only a subset of the real vectors `u` and `v`. However, since we reduce the result of each process in the end and send it to all processes by `Allreduce`, we still get the true value of these operations on vectors `u` and `v` regardless process.
+```{python, code=read_from_commit(here::here("mpi", "norms_mpi.py"), c(31:49), commit = "5adcd24"), eval=F}
+```
+
+For `matvec`, everything get more complicated, we note that, given a matrix $H$ and $u$, if we note $v = Hu$, we have:
+$$
+v_{i} = \sum_{j=1}^n H_{i,j} u_{j}
+$$
+Therefore, the vector that passed into `matvec` must be a "full" vector.
+
+
+### Power Iteration
+
+With all those principles in mind, we are ready now for a `MPI`-enabled power iteration. The general idea will be:
+```{=latex}
+\begin{algorithm}[H]
+  \DontPrintSemicolon
+  \KwData{A diagonalizable matrix $G$ whose size is $kn$ and $k$ processes}
+  \KwResult{Largest eigenvalue and associated eigenvector}
+  In process $i$\;
+  \Indp
+    $v_{i} \leftarrow $ random\;
+    gather $u \leftarrow \begin{pmatrix} v_{1} & \dots & v_{k} \end{pmatrix}$ (each process has their own copy of $u$)\;
+  \Indm
+  Define\;
+  \Indp
+    $G_{i} = \begin{pmatrix} G_{(i - 1)n + 1, \mathlarger{\cdot}} & \dots & G_{in, \mathlarger{\cdot}} \end{pmatrix}^{\intercal}$\;
+  \Indm
+  \While{$\left\Vert u_{i} - v\right\Vert >\epsilon$}{
+    define $G_{i}$ and $u_{i}$\;
+    compute $v_{i}=G_{i}u$ or in other world $v_{i} = \begin{pmatrix}[Gu]_{(i - 1)n + 1} & \dots & [Gu]_{in}\end{pmatrix}^{\intercal}$\;
+    by using MPI-enabled functions above\;
+    \Indp
+      gather $v \leftarrow \begin{pmatrix} v_{1} & \dots & v_{k} \end{pmatrix}$\;
+      define $\lambda=u^{\intercal}v$ and $v_i=\frac{v_i}{\Vert v\Vert}$\;
+    \Indm
+    gather $u \leftarrow \begin{pmatrix} v_{1} & \dots & v_{k} \end{pmatrix}$\;
+  }
+\end{algorithm}
+```
+
+#### Dense {-}
+For the dense approach, the main logic is implemented as follow:
+```{python, code=read_from_commit(here::here("mpi", "pagerank_dense.py"), c(113,114,117:119), commit = "836ae8b"), eval=F}
+```
+Inside the code above, `matvec` is just a normal matrix multiplication. The step gather `v` above is executed inside `dot_product` and `norm2` functions. `mpi_all_to_all` is the function we used in order to gather `u` at the end with the help of `Allgather` or `Allgatherv` underlying.
+
+#### Sparse {-}
+However, the sparse method requires a slightly more complicated solution. It has one different line from the the first version.
+```{python, code=read_from_commit(here::here("mpi", "pagerank_sparse.py"), c(114:118), commit = "fb36519"), eval=F}
+```
+Where `matvec` is
+```{python, code=read_from_commit(here::here("mpi", "pagerank_sparse.py"), c(74:79,84:88), commit = "fb36519"), eval=F}
+```
+Although, `dot_product` produces a global result, it is still true because it is a scalar, not a vector as show above.
+
+### Benchmarking
+```{r, google-dense-sparse-mpi, include=F}
+```
+```{r, google-dense-sparse-mpi-plot, echo=F, fig.cap="mpi vs non-mpi"}
+mpi_google_dense_sparse_plot
+```
+First, both versions (non `MPI` and `MPI`) using the dense algorithm is defeated by the matrix `ucam2006` as explained above. Second, interestingly, when number of processes is `r mpi_np_default`, it took more time than non `MPI` version. This could be explained by the fact that `MPI` is optimized for a distributed cluster of machines but we are testing on only one computer, hence, the communication overhead overshaddowed any benefit it brought to us.

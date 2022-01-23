@@ -3,8 +3,19 @@
 library(dplyr)
 library(reticulate)
 library(kableExtra)
+library(ggplot2)
+library(hrbrthemes)
 library(stringr)
 library(tidyr)
+library(viridis)
+
+theme_set(theme_ipsum(base_family = "") + theme(
+  axis.title.x = element_text(hjust = 0.5),
+  axis.title.y = element_text(hjust = 0.5), plot.margin = margin(
+    t = 0.5,
+    r = 2, b = 0.5, l = 2, "cm"
+  )
+))
 
 source(here::here("reports", "utils.r"))
 source_python(here::here("reports", "utils.py"))
@@ -195,3 +206,45 @@ google_dense_sparse_df %>%
   ), caption = "dense vs
 sparse approach") %>%
   kable_styling(latex_options = c("hold_position"))
+
+## ---- google-dense-sparse-mpi
+mpi_matrix_params <- init_matrix_params(c(
+  1, 2, 3,
+  4, 5
+))
+mpi_np_default <- 4L
+mpi_algo_params <- init_algo_params(
+  rep(1:2, each = 2),
+  rep(c(0L, mpi_np_default), 2)
+)
+mpi_dense_sparse_params <- mpi_matrix_params %>%
+  crossing(mpi_algo_params) %>%
+  unite("init", c(h_init, init), sep = "\n")
+mpi_google_dense_sparse_db <- DBMPI(
+  matrices = mpi_dense_sparse_params$matrix,
+  shapes = mpi_dense_sparse_params$shape, algos = mpi_dense_sparse_params$algo,
+  nps = mpi_dense_sparse_params$np, algo_sources = mpi_dense_sparse_params$s,
+  inits = mpi_dense_sparse_params$init
+)
+mpi_google_dense_sparse_df <- mpi_google_dense_sparse_db$to_df(c(
+  "matrix",
+  "algo", "np", "time"
+), F)
+mpi_google_dense_sparse_plot <- mpi_google_dense_sparse_df %>%
+  ggplot(aes(
+    x = matrix, y = time, shape = as.factor(np),
+    color = algo, group = interaction(np, algo)
+  )) +
+  geom_line(alpha = 0.75) +
+  geom_point(
+    size = 2,
+    alpha = 0.9
+  ) +
+  xlab("Matrix") +
+  ylab("Time (s)") +
+  theme(legend.position = "bottom") +
+  scale_color_manual(values = turbo(4)) +
+  scale_shape_discrete(name = "number of processes") +
+  scale_x_discrete(labels = c(paste("r", as.integer(10^c(1:4)),
+    sep = ""
+  ), "ucam2006"))
