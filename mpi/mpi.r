@@ -1,4 +1,4 @@
-## ---- init ----
+## ---- init-mpi ----
 
 library(dplyr)
 library(reticulate)
@@ -10,6 +10,7 @@ library(network)
 library(stringr)
 library(tidyr)
 library(viridis)
+library(scales)
 
 theme_set(theme_ipsum(base_family = "") + theme(
   axis.title.x = element_text(hjust = 0.5),
@@ -19,7 +20,6 @@ theme_set(theme_ipsum(base_family = "") + theme(
   )
 ))
 
-source(here::here("reports", "utils.r"))
 source_python(here::here("reports", "utils.py"))
 
 py_run_string(sprintf(
@@ -139,7 +139,7 @@ init_matrix_params <- function(types) {
 init_algo_params <- function(types, nps) {
   params <- tibble(type = types, np = nps) %>%
     mutate(
-      algo = mapply(Algo, as.integer(type)),
+      algo = mapply(AlgoMPI, as.integer(type)),
       init = case_when(np != 0 ~ "", type ==
         1 ~ gdense_init, type == 2 ~ gsparse_init),
       s = case_when(
@@ -244,7 +244,7 @@ mpi_google_dense_sparse_plot <- mpi_google_dense_sparse_df %>%
   ) +
   xlab("Matrix") +
   ylab("Time (s)") +
-  theme(legend.position = "bottom") +
+  theme(legend.position = "right") +
   scale_color_manual(values = turbo(4)) +
   scale_shape_discrete(name = "number of processes") +
   scale_x_discrete(labels = c(paste("r", as.integer(10^c(1:4)),
@@ -328,7 +328,7 @@ writeLines(paste(b_ex_result[[1]], collapse = "\n"))
 ## ---- B-dense ----
 b_matrix_params <- tibble(matrix = c(Matrix(6)), init = "")
 b_mpi_source <- here::here("mpi", "pagerank_mpi.py")
-b_algo_params <- tibble(algo = rep(c(Algo(1), Algo(3)),
+b_algo_params <- tibble(algo = rep(c(AlgoMPI(1), AlgoMPI(3)),
   each = 14
 ), np = rep(4L, 2 * 14), s = rep(c(
   gdense_mpi_source,
@@ -347,34 +347,27 @@ b_db <- DBMPI(
 )
 b_df <-
   b_db$to_df(c(
-    "matrix",
-    "algo", "np", "time"
+    "algo", "time", "shape"
   ), F)
 b_plot <-
   b_df %>% ggplot(aes(
     x =
-      matrix, y = time, shape = as.factor(np), color
-    = algo, group = interaction(np, algo)
+      shape, y = time, color = algo
   )) +
   geom_line(alpha = 0.75) +
   geom_point(
     size = 2,
     alpha = 0.9
   ) +
-  xlab("Matrix") +
+  xlab("shape") +
   ylab("Time
 (s)") +
   theme(
     legend.position = "bottom",
-    legend.box = "vertical"
   ) +
   scale_color_manual(values = turbo(4)) +
-  scale_shape_discrete(name = "number of
-processes") +
-  scale_x_discrete(
-    labels =
-      c(
-        paste("r", as.integer(10^c(1:4)), sep = ""),
-        "ucam2006"
-      )
+  scale_x_continuous(
+    trans = log2_trans(),
+    breaks = trans_breaks("log2", function(x) 2^x),
+    labels = trans_format("log2", math_format(2^.x))
   )

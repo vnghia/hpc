@@ -17,11 +17,11 @@ output:
       in_header: ../reports/preamble.tex
       before_body: ../reports/cover.tex
 ---
-```{r, chunk, include=F, cache=F}
+```{r, chunk-mpi, include=F, cache=F}
 knitr::read_chunk(here::here("mpi", "mpi.r"))
 ```
 
-```{r, init, include=F}
+```{r, init-mpi, include=F}
 ```
 
 # MPI
@@ -381,7 +381,7 @@ We could see easily that:
 - Matrix $B$ is stochastic $\forall kn$.
 - It doesn't contain any dangling node.
 - From 3 observations above, we conclude that largest eigenvalue of $B^{\intercal}$ is $1$.
-- Page 1 receives $\frac{1}{2}$ and \ of the importance of other pages while only share $\frac{1}{8}$ of its. Intuitively, it is safe to guess that page 1 is the most important page.
+- Page 1 receives $\frac{1}{2}$ or $\frac{1}{3}$ of the importance of other pages while only share $\frac{1}{8}$ of its. Intuitively, it is safe to guess that page 1 is the most important page.
 
 That assumption is verified by the output followed.
 ```{r, matrix-B-example-code, include=F}
@@ -413,3 +413,15 @@ There is one more problem to solve. We needs a modified gathering function. Note
 ```
 
 ### Benchmarking
+```{r, B-dense, echo=F}
+```
+```{r, B-dense-plot, echo=F, fig.cap=""}
+b_plot
+```
+Compared to the dense version, the $B^{\intercal}$-optimized version takes less time to compute in general, which means our algorithm is correct.
+
+# Conclusion
+
+Throughout the report, we see that HPC and speed-optimization is a hard problem. It does not only depend on the software, the main problem but also the environment we are running the computation. We would like to end the report with a very famous quote relating to it:
+
+> ***Premature optimization is the root of all evil.***

@@ -5,6 +5,10 @@ knitr::read_chunk("openmp.r")
 ```{r init, include=F}
 ```
 
+# Introduction
+
+In this reports, we study two techniques that are widely-known: `OpenMP` and `MPI`. For a less biased value, each result has been run 100 times and taking average. All the source code could be found on [github](https://www.github.com/vnghia/hpc).
+
 # OpenMP
 ## Optimization techniques {#techniques}
 ### Naive dot
@@ -107,7 +111,7 @@ sequential_plot
 
 In the graph below, we see that the fastest method is no doubt `blas` method, followed by `tiled`, `saxpy` and the slowest is `naive`. This is aligned with what we see in the [section 1](#techniques). In addition, the time for calculating matrices whose size is less than $2^{10} = 1024$ is around $5s$ for all methods. This could be explained by the fact that these matrices could be fitted entierly into the cache, which leads to a significant drop in computation time.
 
-Another property that could be interesting is the version with `OpenMP` is close or even faster than the non `OpenMP` version regardless the overhead of parallelization. This could be explained by many factors ^[https://stackoverflow.com/questions/22927973/openmp-with-single-thread-versus-without-openmp] ^[https://stackoverflow.com/questions/2915390/openmp-num-threads1-executes-faster-than-no-openmp], but the most significant one is As `OpenMP` is just API specification and C compilers are free to implement it in any way they want as long as they respect the specification, many compilers (notably modern `gcc` and `clang`) are smart enough to treat `OpenMP` version of only 1 thread the same as the sequential version. Therefore, we only see a small difference between each run. If we run both versions enough times, the difference in average time of each will be the smaller.
+Another property that could be interesting is the version with `OpenMP` is close or even faster than the non `OpenMP` version regardless the overhead of parallelization. This could be explained by many factors ^[https://stackoverflow.com/questions/22927973/openmp-with-single-thread-versus-without-openmp] ^[https://stackoverflow.com/questions/2915390/openmp-num-threads1-executes-faster-than-no-openmp], but the most significant one is As `OpenMP` is just API specification and C compilers are free to implement it in any way they want as long as they respect the specification, many compilers (notably modern `gcc` and `clang`) are smart enough to treat `OpenMP` version of only 1 thread the same as the sequential version. Therefore, we only see a small difference between each run.
 
 ### Threading
 ```{r, threading-shape, include=F}

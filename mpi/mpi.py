@@ -44,7 +44,7 @@ class Matrix(enum.Enum):
     B = enum.auto()
 
 
-class Algo(enum.Enum):
+class AlgoMPI(enum.Enum):
     dense = enum.auto()
     sparse = enum.auto()
     B = enum.auto()
@@ -58,7 +58,7 @@ class BaseMPI(Base):
 
     matrix = Column(Enum(Matrix), nullable=False, primary_key=True)
     shape = Column(Integer, nullable=False, primary_key=True)
-    algo = Column(Enum(Algo), nullable=False, primary_key=True)
+    algo = Column(Enum(AlgoMPI), nullable=False, primary_key=True)
     niters = Column(Integer, nullable=False)
     important = Column(Integer, nullable=False)
     time = Column(Float, nullable=False)
@@ -82,7 +82,7 @@ class BinaryMPI:
 
     matrix: Matrix = Matrix.random10
     shape: int = 10
-    algo: Algo = Algo.dense
+    algo: AlgoMPI = AlgoMPI.dense
     np: int = 2
     nonzero: int = 0
     dangling: int = 0
@@ -158,7 +158,7 @@ class BinaryMPI:
             if self.matrix != Matrix.B:
                 args.append(str(self.matrix.value))
             else:
-                if self.algo != Algo.B:
+                if self.algo != AlgoMPI.B:
                     args.append(str(self.shape))
                     args.append("--B")
                 else:
@@ -259,14 +259,14 @@ class BinaryMPI:
                 session.commit()
 
 
-KT = tuple[Matrix, int, Algo, int]
+KT = tuple[Matrix, int, AlgoMPI, int]
 
 
 @dataclass
 class DBMPI:
     matrices: Sequence[Matrix] = field(default_factory=lambda: [Matrix.random10])
     shapes: Sequence[Optional[int]] = field(default_factory=lambda: [10])
-    algos: Sequence[Algo] = field(default_factory=lambda: [Algo.dense])
+    algos: Sequence[AlgoMPI] = field(default_factory=lambda: [AlgoMPI.dense])
     nps: Sequence[int] = field(default_factory=lambda: [2])
     multiple_times: int = 100
 
@@ -298,7 +298,7 @@ class DBMPI:
         [matrix.name for matrix in Matrix], ordered=True
     )
     AlgoDtype: ClassVar[pd.CategoricalDtype] = pd.CategoricalDtype(
-        [algo.name for algo in Algo], ordered=True
+        [algo.name for algo in AlgoMPI], ordered=True
     )
     DFDtype: ClassVar[dict[str, type]] = {
         "matrix": MatrixDtype,
@@ -366,7 +366,7 @@ class DBMPI:
                     init=init,
                     algo_source=source,
                 )
-                if algo == Algo.dense and memory > RAM_LIMIT:
+                if algo == AlgoMPI.dense and memory > RAM_LIMIT:
                     binary.niters = -1
                     binary.important = -1
                     binary.time = np.inf
@@ -391,7 +391,7 @@ class DBMPI:
                         "nonzero": nonzero,
                         "dangling": dangling,
                         "density": f"{1000 * nonzero / (shape ** 2):.2f} \\textperthousand",
-                        "memory": "%.2f" % memory if algo == Algo.dense else "",
+                        "memory": "%.2f" % memory if algo == AlgoMPI.dense else "",
                     },
                     index=[0],
                 )

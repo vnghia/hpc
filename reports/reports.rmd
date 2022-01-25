@@ -18,5 +18,5 @@ output:
       before_body: cover.tex
 ---
 
-```{r, child=c("openmp.rmd")}
+```{r, child=c("openmp.rmd", here::here("mpi", "mpi.rmd"))}
 ```

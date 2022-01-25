@@ -1,0 +1,164 @@
+---
+title: "HPC 4MA"
+author: VO Van Nghia - PHAM Tuan Kiet
+date: January 24, 2022
+classoption: xcolor = usenames,dvipsnames,aspectratio=169
+output:
+  beamer_presentation:
+    theme: "Boadilla"
+    colortheme: "beaver"
+    fonttheme: "structurebold"
+    fig_caption: true
+    highlight: tango
+    keep_tex: false
+    number_sections: true
+    pandoc_args: 
+      - "--listings"
+    latex_engine: lualatex
+    includes:
+      in_header: preamble_slides.tex
+      before_body: cover.tex
+header-includes:
+   - \usepackage{floatrow}
+   - \floatsetup[figure]{capposition=top}
+---
+```{r, chunk, include=F, cache=F}
+knitr::read_chunk("slides.r")
+knitr::read_chunk("../mpi/mpi.r")
+```
+
+```{r init, include=F}
+```
+```{r mpi-init, include=F}
+```
+
+# Introduction
+
+# OpenMP
+
+## Benchmarking
+```{r, sequential-shape, include=F}
+```
+```{r, naive-saxpy-tiled-shape, include=F}
+```
+```{r, naive-saxpy-omp-shape, include=F}
+```
+
+```{r, threading-shape, include=F}
+```
+
+```{r, blocking-shape, include=F}
+```
+```{r, sequential-output, include=F}
+```
+```{r, sequential-plot, echo=F, out.height="90%"}
+sequential_plot
+```
+
+## M and N
+
+```{c, eval=F, out.height="50%"}
+## ( 1.00 1.50 )
+##
+## ( 1.00 1.50 )
+## ( 1.50 2.00 )
+##
+## Frobenius Norm = 3.250000
+## Total time naive = 0.000000
+## Gflops = 0.026229
+##
+## ( 3.25 0.00 )
+##
+## Frobenius Norm = 3.250000
+## Total time BLAS = 0.019731
+## Gflops = 0.000000
+##
+## ( 3.25 0.00 )
+```
+
+---
+
+```{c, eval=F}
+double norm(int nrow, int ncol, int ld, double *A);
+void print_array(int nrow, int ncol, int ld, double *A);
+```
+
+```{c, eval=F}
+printf("Frobenius Norm = %f\n", norm(N, M, ldc, c));
+// ...
+print_array(M, N, ldc, c);
+```
+
+```{c, eval=F}
+int lda = N + 1;
+int ldb = K + 1;
+int ldc = N + 1;
+double *a = (double *)malloc(lda * K * sizeof(double));
+double *b = (double *)malloc(ldb * M * sizeof(double));
+double *c = (double *)malloc(ldc * M * sizeof(double));
+// ...
+cblas_dgemm(CblasColMajor, CblasNoTrans, CblasNoTrans, M, N, K, alpha, a, lda,
+b, ldb, beta, c, ldc);
+```
+
+---
+
+```{c, eval=F}
+int lda = M;
+int ldb = K;
+int ldc = M;
+double *a = (double *)malloc(lda * K * sizeof(double));
+double *b = (double *)malloc(ldb * N * sizeof(double));
+double *c = (double *)malloc(ldc * N * sizeof(double));
+```
+
+# MPI
+
+## Benchmarking
+
+```{r, google-dense-sparse-mpi, include=F}
+```
+```{r, google-dense-sparse-mpi-plot, echo=F, out.height="90%"}
+mpi_google_dense_sparse_plot
+```
+
+## Matrix size is not divisible by number of processes
+
+```{python, eval=F}
+def mpi_all_to_all_allgather(x, xd, comm=MPI.COMM_WORLD):
+    comm.Allgather(xd, x)
+    return x
+```
+```{python, eval=F}
+ValueError: message: cannot infer count, number of entries 10 is not a multiple of required number of blocks 4
+```
+
+---
+```{python, eval=F}
+def mpi_all_to_all_allgatherv(x, xd, counts, disps, comm=MPI.COMM_WORLD):
+    comm.Allgatherv([xd, np.size(xd), MPI.DOUBLE], [x, counts, disps, MPI.DOUBLE])
+    return x
+```
+```{python, eval=F}
+    nd = int(np.ceil(n / size))
+    start = rank * nd
+    end = (rank + 1) * nd
+    mpi_all_to_all = mpi_all_to_all_allgather
+    if n % size:
+        counts = [nd] * size
+        counts[-1] = n - nd * (size - 1)
+        disps = np.zeros(size, dtype=int)
+        disps[1:] = np.cumsum(counts)[:-1]
+        mpi_all_to_all = functools.partial(
+            mpi_all_to_all_allgatherv, counts=counts, disps=disps
+        )
+    if rank == size - 1:
+        end = n
+        nd = end - start
+```
+
+---
+
+\begin{center}
+Thank you for your attention !
+\end {center}

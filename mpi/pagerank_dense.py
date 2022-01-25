@@ -116,7 +116,7 @@ def power_iteration(
         # the normalization of `v` will be wrong.
         v = (1 / norm2(v, comm)) * v
         diff_norm = norm2(u[start:end] - v, comm)
-        u = mpi_all_to_all(u, v, comm=comm)
+        u = mpi_all_to_all_allgather(u, v, comm=comm)
         it += 1
     if comm.rank == 0 and log:
         print("number of iterations = %3d" % it)
